@@ -8,10 +8,185 @@ import warnings
 import copy
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from functools import partial
+from einops import rearrange
 
 from weaver.utils.logger import _logger
 from weaver.nn.model.ParticleTransformer import build_sparse_tensor, trunc_normal_, SequenceTrimmer, Embed, Block, pairwise_lv_fts
+
+
+# ---------------------------------------------------------------------------
+# Erwin components (adapted from erwin/models/erwin.py – ICML 2025)
+# ---------------------------------------------------------------------------
+
+class SwiGLU(nn.Module):
+    """W_3 * SiLU(W_1 x) ⊗ W_2 x"""
+    def __init__(self, in_dim: int, dim: int):
+        super().__init__()
+        self.w1 = nn.Linear(in_dim, dim)
+        self.w2 = nn.Linear(in_dim, dim)
+        self.w3 = nn.Linear(dim, in_dim)
+
+    def forward(self, x: torch.Tensor):
+        return self.w3(self.w2(x) * F.silu(self.w1(x)))
+
+
+class BallMSA(nn.Module):
+    """Ball Multi-Head Self-Attention (BMSA) with distance-based attention bias."""
+    def __init__(self, dim: int, num_heads: int, ball_size: int, dimensionality: int = 2):
+        super().__init__()
+        self.num_heads = num_heads
+        self.ball_size = ball_size
+
+        self.qkv = nn.Linear(dim, 3 * dim)
+        self.proj = nn.Linear(dim, dim)
+        self.pe_proj = nn.Linear(dimensionality, dim)
+        self.sigma_att = nn.Parameter(-1 + 0.01 * torch.randn((1, num_heads, 1, 1)))
+
+    @torch.no_grad()
+    def create_attention_mask(self, pos: torch.Tensor):
+        pos = rearrange(pos, '(n m) d -> n m d', m=self.ball_size)
+        return torch.cdist(pos, pos, p=2).unsqueeze(1)
+
+    @torch.no_grad()
+    def compute_rel_pos(self, pos: torch.Tensor):
+        num_balls = pos.shape[0] // self.ball_size
+        pos = pos.view(num_balls, self.ball_size, pos.shape[1])
+        return (pos - pos.mean(dim=1, keepdim=True)).view(-1, pos.shape[2])
+
+    def forward(self, x: torch.Tensor, pos: torch.Tensor):
+        x = x + self.pe_proj(self.compute_rel_pos(pos))
+        q, k, v = rearrange(self.qkv(x), "(n m) (H E K) -> K n H m E",
+                             H=self.num_heads, m=self.ball_size, K=3)
+        x = F.scaled_dot_product_attention(
+            q, k, v, attn_mask=self.sigma_att * self.create_attention_mask(pos))
+        x = rearrange(x, "n H m E -> (n m) (H E)", H=self.num_heads, m=self.ball_size)
+        return self.proj(x)
+
+
+class ErwinTransformerBlock(nn.Module):
+    """Full Erwin transformer block: pre-norm BallMSA + pre-norm SwiGLU MLP."""
+    def __init__(self, dim: int, num_heads: int, ball_size: int,
+                 mlp_ratio: int = 4, dimensionality: int = 2):
+        super().__init__()
+        self.ball_size = ball_size
+        self.norm1 = nn.RMSNorm(dim)
+        self.norm2 = nn.RMSNorm(dim)
+        self.BMSA = BallMSA(dim, num_heads, ball_size, dimensionality)
+        self.swiglu = SwiGLU(dim, dim * mlp_ratio)
+
+    def forward(self, x: torch.Tensor, pos: torch.Tensor):
+        x = x + self.BMSA(self.norm1(x), pos)
+        return x + self.swiglu(self.norm2(x))
+
+
+# ---------------------------------------------------------------------------
+# Position helper and ParticleErwinBlock
+# ---------------------------------------------------------------------------
+
+def _compute_positions(v: torch.Tensor) -> torch.Tensor:
+    """
+    Compute (eta, phi) pseudo-rapidity and azimuthal angle from 4-momentum.
+
+    Args:
+        v: (N, 4, P)  [px, py, pz, energy]
+    Returns:
+        pos: (N, P, 2) [eta, phi]
+    """
+    px, py, pz = v[:, 0], v[:, 1], v[:, 2]   # (N, P)
+    pt = torch.sqrt(px ** 2 + py ** 2).clamp(min=1e-8)
+    eta = torch.asinh(pz / pt)
+    phi = torch.atan2(py, px)
+    return torch.stack([eta, phi], dim=-1)     # (N, P, 2)
+
+
+class ParticleErwinBlock(nn.Module):
+    """
+    Adapter that runs ErwinTransformerBlock inside EfficientParticleTransformer.
+
+    For each jet (batch element):
+      1. Extracts real (non-padded) particles.
+      2. Sorts them by eta for spatial locality within balls.
+      3. Pads to a multiple of ball_size by repeating the last particle.
+      4. Stacks all jets and calls ErwinTransformerBlock in one forward pass.
+      5. Scatters the output back to the original (P, N, C) layout.
+
+    Interface matches LinBlock:
+        forward(x, pos, padding_mask) -> x   with x: (P, N, C)
+    """
+    def __init__(self, embed_dim: int, num_heads: int,
+                 ball_size: int = 16, mlp_ratio: int = 4, dimensionality: int = 2):
+        super().__init__()
+        self.ball_size = ball_size
+        self.block = ErwinTransformerBlock(embed_dim, num_heads, ball_size,
+                                           mlp_ratio, dimensionality)
+
+    def forward(self, x: torch.Tensor, pos: torch.Tensor,
+                padding_mask: torch.Tensor = None) -> torch.Tensor:
+        """
+        Args:
+            x:            (P, N, C)  seq_len × batch × embed_dim
+            pos:          (N, P, 2)  eta, phi per particle per jet
+            padding_mask: (N, P)     True = padded slot
+        Returns:
+            (P, N, C)
+        """
+        P, N, C = x.shape
+        x_t = x.permute(1, 0, 2)   # (N, P, C)
+
+        all_x_in, all_pos_in, scatter_info = [], [], []
+
+        for n in range(N):
+            if padding_mask is not None:
+                real_mask = ~padding_mask[n]
+            else:
+                real_mask = torch.ones(P, dtype=torch.bool, device=x.device)
+
+            num_real = int(real_mask.sum().item())
+            if num_real == 0:
+                scatter_info.append(None)
+                continue
+
+            real_x   = x_t[n, real_mask]       # (num_real, C)
+            real_pos = pos[n, real_mask]        # (num_real, 2)
+
+            # Sort by eta so consecutive particles are spatially close
+            sort_idx = torch.argsort(real_pos[:, 0])
+            real_x   = real_x[sort_idx]
+            real_pos = real_pos[sort_idx]
+
+            # Pad to a multiple of ball_size by repeating the last particle
+            pad_size   = (self.ball_size - num_real % self.ball_size) % self.ball_size
+            padded_len = num_real + pad_size
+            if pad_size > 0:
+                real_x   = torch.cat([real_x,   real_x[-1:].expand(pad_size, C)], dim=0)
+                real_pos = torch.cat([real_pos, real_pos[-1:].expand(pad_size, 2)], dim=0)
+
+            all_x_in.append(real_x)
+            all_pos_in.append(real_pos)
+            scatter_info.append((num_real, sort_idx, real_mask, padded_len))
+
+        if not all_x_in:
+            return x
+
+        x_cat   = torch.cat(all_x_in,   dim=0)   # (total_padded, C)
+        pos_cat = torch.cat(all_pos_in,  dim=0)   # (total_padded, 2)
+        out_cat = self.block(x_cat, pos_cat)       # (total_padded, C)
+
+        x_out  = x_t.clone()
+        offset = 0
+        for n in range(N):
+            info = scatter_info[n]
+            if info is None:
+                continue
+            num_real, sort_idx, real_mask, padded_len = info
+            out_n = out_cat[offset:offset + padded_len][:num_real]   # (num_real, C)
+            x_out[n, real_mask] = out_n[torch.argsort(sort_idx)]
+            offset += padded_len
+
+        return x_out.permute(1, 0, 2)   # (P, N, C)
+
 
 def to_qtypedderr(x):
     # x: (N, 17, ...),
@@ -405,11 +580,28 @@ class EfficientParticleTransformer(nn.Module):
             else nn.Identity()
         )
         self.pair_more_input_dim = pair_more_input_dim
-        self.pair_embed = PairEmbedFull(
-            pair_input_dim, pair_more_input_dim, pair_extra_dim, pair_embed_dims + [cfg_block['num_heads']],
-            remove_self_pair=remove_self_pair, use_pre_activation_pair=use_pre_activation_pair,
-            for_onnx=for_inference) if pair_embed_dims is not None and pair_input_dim + pair_more_input_dim + pair_extra_dim > 0 else None
-        self.blocks = nn.ModuleList([LinBlock(**cfg_block) for _ in range(num_layers)])
+
+        # When using Erwin blocks the pair embedding is not used (BallMSA handles
+        # spatial interactions via its built-in distance-based attention bias).
+        if cfg_block.get('attn_type') == 'erwin':
+            self.use_erwin_blocks = True
+            self.pair_embed = None
+            ball_size = cfg_block.get('ball_size', 16)
+            mlp_ratio  = cfg_block.get('ffn_ratio', 4)
+            self.blocks = nn.ModuleList([
+                ParticleErwinBlock(embed_dim, num_heads, ball_size=ball_size, mlp_ratio=mlp_ratio)
+                for _ in range(num_layers)
+            ])
+        else:
+            self.use_erwin_blocks = False
+            self.pair_embed = PairEmbedFull(
+                pair_input_dim, pair_more_input_dim, pair_extra_dim,
+                pair_embed_dims + [cfg_block['num_heads']],
+                remove_self_pair=remove_self_pair,
+                use_pre_activation_pair=use_pre_activation_pair,
+                for_onnx=for_inference,
+            ) if pair_embed_dims is not None and pair_input_dim + pair_more_input_dim + pair_extra_dim > 0 else None
+            self.blocks = nn.ModuleList([LinBlock(**cfg_block) for _ in range(num_layers)])
         self.cls_blocks = nn.ModuleList(
             [Block(**cfg_cls_block) for _ in range(num_cls_layers)]
         )
@@ -458,13 +650,23 @@ class EfficientParticleTransformer(nn.Module):
             x_in = x if self.pair_more_input_dim > 0 else None
             # input embedding
             x = self.embed(x).masked_fill(~mask.permute(2, 0, 1), 0)  # (P, N, C)
-            attn_mask = None
-            if (v is not None or x_in is not None or uu is not None) and self.pair_embed is not None:
-                attn_mask = self.pair_embed(v, x_in, uu).view(-1, v.size(-1), v.size(-1))  # (N*num_heads, P, P)
 
             # transform
-            for block in self.blocks:
-                x = block(x, padding_mask=padding_mask, attn_mask=attn_mask)
+            if self.use_erwin_blocks:
+                # Compute (eta, phi) from 4-momentum for BallMSA positional encoding
+                assert v is not None, (
+                    "Erwin blocks require the 4-momentum tensor (v) to compute "
+                    "(eta, phi) positions for BallMSA."
+                )
+                pos = _compute_positions(v.float())  # (N, P, 2), always float32
+                for block in self.blocks:
+                    x = block(x, pos=pos, padding_mask=padding_mask)
+            else:
+                attn_mask = None
+                if (v is not None or x_in is not None or uu is not None) and self.pair_embed is not None:
+                    attn_mask = self.pair_embed(v, x_in, uu).view(-1, v.size(-1), v.size(-1))  # (N*num_heads, P, P)
+                for block in self.blocks:
+                    x = block(x, padding_mask=padding_mask, attn_mask=attn_mask)
 
             # extract class token
             cls_tokens = self.cls_token.expand(1, x.size(1), -1)  # (1, N, C)
