@@ -90,6 +90,8 @@ SAMPLE_TYPE=Pythia
 
 # NCCL override
 export NCCL_P2P_DISABLE=1
+export NCCL_IB_DISABLE=1
+export NCCL_DEBUG=INFO
 
 $CMD \
     --data-train \
