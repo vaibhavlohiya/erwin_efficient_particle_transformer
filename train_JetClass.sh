@@ -88,6 +88,9 @@ fi
 # currently only Pythia
 SAMPLE_TYPE=Pythia
 
+# NCCL override
+export NCCL_P2P_DISABLE=1
+
 $CMD \
     --data-train \
     "HToBB:${DATADIR}/${SAMPLE_TYPE}/train_100M/HToBB_*.root" \
