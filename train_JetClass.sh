@@ -37,7 +37,7 @@ elif [[ "$model" == "LinformerPairWise" ]]; then
     batchopts="--batch-size 512 --start-lr 1e-3"
 elif [[ "$model" == "ErwinParT" ]]; then
     modelopts="networks/example_ErwinParticleTransformer.py --use-amp"
-    batchopts="--batch-size 16 --start-lr 1e-3"
+    batchopts="--batch-size 512 --start-lr 1e-3"
 elif [[ "$model" == "ReformerParT" ]]; then
     modelopts="networks/example_ReformerParticleTransformer.py --use-amp"
     batchopts="--batch-size 512 --start-lr 1e-3"
