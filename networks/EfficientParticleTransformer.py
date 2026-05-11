@@ -201,6 +201,7 @@ class LinBlock(nn.Module):
         self,
         embed_dim=128,
         num_heads=8,
+        ball_size = None,
         max_seq_len=128,
         attn_type="linformer",
         compressed=4,
