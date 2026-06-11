@@ -33,7 +33,14 @@ class SwiGLU(nn.Module):
 
 
 class BallMSA(nn.Module):
-    """Ball Multi-Head Self-Attention (BMSA) with distance-based attention bias."""
+    """Ball Multi-Head Self-Attention (BMSA) with distance-based attention bias.
+
+    Implements Eq. 9 (relative position embedding) and Eq. 10 (distance-based
+    attention bias) of the Erwin paper:
+
+        Eq. 9 :  X_B = X_B + (P_B - c_B) W_pos
+        Eq. 10:  B_B = -sigma^2 * ||p_i - p_j||_2     (per head, learnable sigma)
+    """
     def __init__(self, dim: int, num_heads: int, ball_size: int, dimensionality: int = 2):
         super().__init__()
         self.num_heads = num_heads
@@ -41,26 +48,34 @@ class BallMSA(nn.Module):
 
         self.qkv = nn.Linear(dim, 3 * dim)
         self.proj = nn.Linear(dim, dim)
+        # W_pos of Eq. 9: projects the (P_B - c_B) relative coordinates to dim
         self.pe_proj = nn.Linear(dimensionality, dim)
-        self.sigma_att = nn.Parameter(-1 + 0.01 * torch.randn((1, num_heads, 1, 1)))
+        # sigma of Eq. 10, one per head. The bias is formed as -sigma^2 * dist,
+        # so it is non-positive and decays with distance by construction,
+        # whatever sign sigma drifts to during training.
+        self.sigma_att = nn.Parameter(1.0 + 0.01 * torch.randn((1, num_heads, 1, 1)))
 
     @torch.no_grad()
-    def create_attention_mask(self, pos: torch.Tensor):
-        pos = rearrange(pos, '(n m) d -> n m d', m=self.ball_size)
-        return torch.cdist(pos, pos, p=2).unsqueeze(1)
+    def pairwise_distances(self, pos: torch.Tensor):
+        """Euclidean distance ||p_i - p_j||_2 between members of each ball."""
+        pos = rearrange(pos, '(n m) d -> n m d', m=self.ball_size)   # (n_balls, B, d)
+        return torch.cdist(pos, pos, p=2).unsqueeze(1)               # (n_balls, 1, B, B)
 
     @torch.no_grad()
     def compute_rel_pos(self, pos: torch.Tensor):
+        """(P_B - c_B) of Eq. 9: c_B is the centroid (mean coordinate) of each ball."""
         num_balls = pos.shape[0] // self.ball_size
-        pos = pos.view(num_balls, self.ball_size, pos.shape[1])
+        pos = pos.view(num_balls, self.ball_size, pos.shape[1])      # (n_balls, B, d)
         return (pos - pos.mean(dim=1, keepdim=True)).view(-1, pos.shape[2])
 
     def forward(self, x: torch.Tensor, pos: torch.Tensor):
-        x = x + self.pe_proj(self.compute_rel_pos(pos))
+        # Eq. 9: add the projected ball-relative coordinates to the features
+        x = x + self.pe_proj(self.compute_rel_pos(pos))              # (n_balls*B, C)
         q, k, v = rearrange(self.qkv(x), "(n m) (H E K) -> K n H m E",
                              H=self.num_heads, m=self.ball_size, K=3)
-        x = F.scaled_dot_product_attention(
-            q, k, v, attn_mask=self.sigma_att * self.create_attention_mask(pos))
+        # Eq. 10: structurally -sigma^2 * distance (negative, distance-decaying)
+        attn_bias = -(self.sigma_att ** 2) * self.pairwise_distances(pos)  # (n_balls, H, B, B)
+        x = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
         x = rearrange(x, "n H m E -> (n m) (H E)", H=self.num_heads, m=self.ball_size)
         return self.proj(x)
 
@@ -107,20 +122,47 @@ class ParticleErwinBlock(nn.Module):
 
     For each jet (batch element):
       1. Extracts real (non-padded) particles.
-      2. Sorts them by eta for spatial locality within balls.
+      2. Sorts them by ascending Delta-R distance from the jet axis (the
+         unweighted (eta, phi) centroid of the real particles), so consecutive
+         particles fall into the same angular annulus around the jet core.
       3. Pads to a multiple of ball_size by repeating the last particle.
-      4. Stacks all jets and calls ErwinTransformerBlock in one forward pass.
-      5. Scatters the output back to the original (P, N, C) layout.
+      4. If `shift=True` (cross-ball attention, Erwin paper Sec. 3.2), rolls
+         the sorted sequence by ball_size // 2 so the new balls straddle two
+         neighbouring balls of the unshifted layout; alternating shifted /
+         unshifted layers propagates information across balls while keeping
+         the O(P * ball_size) cost.
+      5. Stacks all jets and calls ErwinTransformerBlock in one forward pass.
+      6. Un-rolls, un-sorts and scatters the output back to (P, N, C).
 
     Interface matches LinBlock:
         forward(x, pos, padding_mask) -> x   with x: (P, N, C)
     """
     def __init__(self, embed_dim: int, num_heads: int,
-                 ball_size: int = 16, mlp_ratio: int = 4, dimensionality: int = 2):
+                 ball_size: int = 16, mlp_ratio: int = 4, dimensionality: int = 2,
+                 shift: bool = False):
         super().__init__()
         self.ball_size = ball_size
+        self.shift = shift
+        self.half_ball = ball_size // 2
         self.block = ErwinTransformerBlock(embed_dim, num_heads, ball_size,
                                            mlp_ratio, dimensionality)
+
+    @staticmethod
+    def _delta_r_sort_idx(real_pos: torch.Tensor) -> torch.Tensor:
+        """
+        Sorting indices by ascending angular distance from the jet axis.
+
+        jet axis:  eta_jet = mean(eta_i), phi_jet = mean(phi_i)  (real particles)
+        Delta R_i = sqrt((eta_i - eta_jet)^2 + (phi_i - phi_jet)^2)
+
+        Args:
+            real_pos: (num_real, 2)  [eta, phi] of the real particles of one jet
+        Returns:
+            sort_idx: (num_real,)    indices that sort by ascending Delta R
+        """
+        jet_axis = real_pos.mean(dim=0, keepdim=True)            # (1, 2)
+        delta_r = torch.linalg.norm(real_pos - jet_axis, dim=-1)  # (num_real,)
+        return torch.argsort(delta_r)
 
     def forward(self, x: torch.Tensor, pos: torch.Tensor,
                 padding_mask: torch.Tensor = None) -> torch.Tensor:
@@ -151,8 +193,9 @@ class ParticleErwinBlock(nn.Module):
             real_x   = x_t[n, real_mask]       # (num_real, C)
             real_pos = pos[n, real_mask]        # (num_real, 2)
 
-            # Sort by eta so consecutive particles are spatially close
-            sort_idx = torch.argsort(real_pos[:, 0])
+            # Sort by Delta R from the jet axis so consecutive particles are
+            # spatially close (same annulus around the jet core)
+            sort_idx = self._delta_r_sort_idx(real_pos)
             real_x   = real_x[sort_idx]
             real_pos = real_pos[sort_idx]
 
@@ -162,6 +205,15 @@ class ParticleErwinBlock(nn.Module):
             if pad_size > 0:
                 real_x   = torch.cat([real_x,   real_x[-1:].expand(pad_size, C)], dim=0)
                 real_pos = torch.cat([real_pos, real_pos[-1:].expand(pad_size, 2)], dim=0)
+
+            # Cross-ball attention: cyclically roll the sorted sequence by half
+            # a ball, so each ball of this layer straddles two balls of the
+            # unshifted layers (positions roll together with their features).
+            # With a single ball this permutes members within the ball, which
+            # leaves the (permutation-equivariant) attention output unchanged.
+            if self.shift:
+                real_x   = torch.roll(real_x,   shifts=-self.half_ball, dims=0)
+                real_pos = torch.roll(real_pos, shifts=-self.half_ball, dims=0)
 
             all_x_in.append(real_x)
             all_pos_in.append(real_pos)
@@ -181,11 +233,112 @@ class ParticleErwinBlock(nn.Module):
             if info is None:
                 continue
             num_real, sort_idx, real_mask, padded_len = info
-            out_n = out_cat[offset:offset + padded_len][:num_real]   # (num_real, C)
+            out_n = out_cat[offset:offset + padded_len]              # (padded_len, C)
+            if self.shift:
+                # Undo the cross-ball roll before dropping padding / un-sorting
+                out_n = torch.roll(out_n, shifts=self.half_ball, dims=0)
+            out_n = out_n[:num_real]                                  # (num_real, C)
             x_out[n, real_mask] = out_n[torch.argsort(sort_idx)]
             offset += padded_len
 
         return x_out.permute(1, 0, 2)   # (P, N, C)
+
+
+# ---------------------------------------------------------------------------
+# Analysis utilities: trainable parameters & theoretical FLOPs
+# ---------------------------------------------------------------------------
+
+def count_trainable_params(module: nn.Module) -> int:
+    """
+    Exact number of trainable parameters in `module`.
+
+    For ParticleErwinBlock with embed dim C, heads H, MLP ratio r and
+    coordinate dimensionality d, the closed form is:
+
+        BallMSA :  qkv     3C^2 + 3C
+                   proj     C^2 +  C
+                   pe_proj   dC +  C
+                   sigma            H
+        SwiGLU  :  w1, w2  2(rC^2 + rC)
+                   w3       rC^2 +  C
+        RMSNorm :  x2              2C
+
+        total = (4 + 3r) C^2 + (d + 2r + 8) C + H
+
+    e.g. C=128, r=4, d=2, H=8  ->  16*128^2 + 18*128 + 8 = 264,456.
+    """
+    return sum(p.numel() for p in module.parameters() if p.requires_grad)
+
+
+def erwin_block_flops(N: int, P: int, C: int, num_heads: int = 8,
+                      ball_size: int = 16, mlp_ratio: int = 4,
+                      dimensionality: int = 2) -> dict:
+    """
+    Theoretical FLOPs of one forward pass through ParticleErwinBlock.
+
+    Conventions:
+      * one multiply-accumulate = 2 FLOPs;
+      * T = N * P tokens (assumes P is a multiple of B; ball padding adds at
+        most B-1 tokens per jet, a negligible correction);
+      * B = ball_size, H = num_heads, r = mlp_ratio, d = dimensionality.
+
+    Derivation (every term is linear in P):
+
+      RPE, Eq. 9          Linear(d -> C)                       2 T d C
+      QKV projection      Linear(C -> 3C)                      6 T C^2
+      Distance bias       B^2 pairs/ball, d dims, ~3 ops each  3 T B d
+      Attention scores    Q K^T per ball: H * (B x E)(E x B),
+                          H E = C                              2 T B C
+      Softmax             ~5 ops per score, H heads            5 T B H
+      Attention values    softmax(.) V                         2 T B C
+      Output projection   Linear(C -> C)                       2 T C^2
+      SwiGLU MLP          w1, w2: Linear(C -> rC),
+                          w3: Linear(rC -> C)                  6 r T C^2
+                          SiLU + gating product                4 r T C
+      RMSNorm x2          ~4 ops per element each              8 T C
+
+      total ~= N P [ (8 + 6r) C^2 + 4 B C + lower-order ]
+
+    The attention cost is O(N * P * B * C): *linear* in sequence length P,
+    versus O(N * P^2 * C) for full pairwise attention.
+
+    Returns a dict with the per-component breakdown and 'total'.
+    """
+    T, B, H, r, d = N * P, ball_size, num_heads, mlp_ratio, dimensionality
+    flops = {
+        'rpe_projection':    2 * T * d * C,
+        'qkv_projection':    6 * T * C * C,
+        'distance_bias':     3 * T * B * d,
+        'attention_scores':  2 * T * B * C,
+        'softmax':           5 * T * B * H,
+        'attention_values':  2 * T * B * C,
+        'output_projection': 2 * T * C * C,
+        'swiglu_linear':     6 * r * T * C * C,
+        'swiglu_gating':     4 * r * T * C,
+        'rmsnorm':           8 * T * C,
+    }
+    flops['total'] = sum(flops.values())
+    return flops
+
+
+def analyze_erwin_block(block: 'ParticleErwinBlock', N: int = 1, P: int = 128) -> dict:
+    """Print and return the parameter count and FLOPs breakdown of `block`."""
+    C = block.block.norm1.weight.shape[0]
+    H = block.block.BMSA.num_heads
+    d = block.block.BMSA.pe_proj.in_features
+    r = block.block.swiglu.w1.out_features // C
+
+    n_params = count_trainable_params(block)
+    flops = erwin_block_flops(N, P, C, num_heads=H, ball_size=block.ball_size,
+                              mlp_ratio=r, dimensionality=d)
+
+    print(f"ParticleErwinBlock  (C={C}, H={H}, B={block.ball_size}, r={r}, d={d})")
+    print(f"  trainable parameters : {n_params:,}")
+    print(f"  forward FLOPs (N={N}, P={P}):")
+    for name, val in flops.items():
+        marker = '  total ->' if name == 'total' else '          '
+        print(f"  {marker} {name:<18s} {val:>14,}")
+    return {'params': n_params, 'flops': flops}
 
 
 def to_qtypedderr(x):
@@ -588,9 +741,13 @@ class EfficientParticleTransformer(nn.Module):
             self.pair_embed = None
             ball_size = cfg_block.get('ball_size', 16)
             mlp_ratio  = cfg_block.get('ffn_ratio', 4)
+            # Alternate unshifted / shifted ball layouts (cross-ball attention,
+            # Erwin paper Sec. 3.2): odd layers roll the sorted sequence by
+            # ball_size // 2 so information propagates across ball boundaries.
             self.blocks = nn.ModuleList([
-                ParticleErwinBlock(embed_dim, num_heads, ball_size=ball_size, mlp_ratio=mlp_ratio)
-                for _ in range(num_layers)
+                ParticleErwinBlock(embed_dim, num_heads, ball_size=ball_size,
+                                   mlp_ratio=mlp_ratio, shift=(i % 2 == 1))
+                for i in range(num_layers)
             ])
         else:
             self.use_erwin_blocks = False
@@ -759,3 +916,12 @@ class EfficientParticleTransformerTagger(nn.Module):
             x = torch.cat([pf_x, sv_x], dim=0)
 
             return self.part(x, v, mask)
+
+
+if __name__ == "__main__":
+    # Standalone analysis: parameters & theoretical FLOPs of ParticleErwinBlock
+    # (matches the ErwinParT config in networks/example_ErwinParticleTransformer.py)
+    #   python networks/EfficientParticleTransformer.py
+    C, H, B, r = 128, 8, 32, 4
+    block = ParticleErwinBlock(C, H, ball_size=B, mlp_ratio=r)
+    analyze_erwin_block(block, N=1, P=128)

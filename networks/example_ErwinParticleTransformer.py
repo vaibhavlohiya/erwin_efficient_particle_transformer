@@ -7,8 +7,12 @@ Erwin-based Particle Transformer.
 
 Replaces the LinBlock attention blocks with ErwinTransformerBlock (ICML 2025):
   - Ball Multi-Head Self-Attention (BallMSA) groups nearby particles (sorted
-    by eta) into balls of `ball_size` particles and applies scaled dot-product
-    attention with a learned, distance-based attention bias (sigma_att).
+    by ascending Delta-R distance from the jet axis) into balls of `ball_size`
+    particles and applies scaled dot-product attention with a learnable
+    distance-based attention bias  -sigma^2 * ||p_i - p_j||  (Erwin Eq. 10)
+    and a ball-relative position embedding (Erwin Eq. 9).
+  - Odd-indexed layers use a shifted ball layout (sequence rolled by
+    ball_size // 2) for cross-ball information propagation.
   - A SwiGLU MLP replaces the standard FFN.
   - The pair embedding is dropped; spatial locality is handled entirely by
     BallMSA's distance-based attention bias.
@@ -48,7 +52,7 @@ def get_model(data_config, **kwargs):
         num_cls_layers=2,
         block_params={
             'attn_type': 'erwin',
-            'ball_size': 16,   # particles per BallMSA attention ball
+            'ball_size': 32,   # particles per BallMSA attention ball
             'ffn_ratio': 4,    # SwiGLU hidden-dim ratio
         },
         cls_block_params={'dropout': 0, 'attn_dropout': 0, 'activation_dropout': 0},
