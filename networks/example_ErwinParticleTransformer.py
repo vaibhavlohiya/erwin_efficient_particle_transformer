@@ -48,7 +48,7 @@ def get_model(data_config, **kwargs):
         num_cls_layers=2,
         block_params={
             'attn_type': 'erwin',
-            'ball_size': 16,   # particles per BallMSA attention ball
+            'ball_size': 32,   # particles per BallMSA attention ball
             'ffn_ratio': 4,    # SwiGLU hidden-dim ratio
         },
         cls_block_params={'dropout': 0, 'attn_dropout': 0, 'activation_dropout': 0},
