@@ -1,5 +1,5 @@
 import torch
-from networks.EfficientParticleTransformer import EfficientParticleTransformer
+from particle_transformer.networks.EfficientParticleTransformer import EfficientParticleTransformer
 from weaver.utils.logger import _logger
 
 '''

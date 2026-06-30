@@ -68,13 +68,21 @@ class BallMSA(nn.Module):
         pos = pos.view(num_balls, self.ball_size, pos.shape[1])      # (n_balls, B, d)
         return (pos - pos.mean(dim=1, keepdim=True)).view(-1, pos.shape[2])
 
-    def forward(self, x: torch.Tensor, pos: torch.Tensor):
+    def forward(self, x: torch.Tensor, pos: torch.Tensor,
+                padding_mask: torch.Tensor = None):
         # Eq. 9: add the projected ball-relative coordinates to the features
         x = x + self.pe_proj(self.compute_rel_pos(pos))              # (n_balls*B, C)
         q, k, v = rearrange(self.qkv(x), "(n m) (H E K) -> K n H m E",
                              H=self.num_heads, m=self.ball_size, K=3)
         # Eq. 10: structurally -sigma^2 * distance (negative, distance-decaying)
         attn_bias = -(self.sigma_att ** 2) * self.pairwise_distances(pos)  # (n_balls, H, B, B)
+        # Mask out padded (repeated) particles so they contribute nothing as
+        # keys/values: set their attention-bias columns to -inf -> zero weight
+        # after softmax. Every ball keeps >=1 real key (padding spans < ball_size
+        # contiguous slots), so no row is fully masked.
+        if padding_mask is not None:
+            key_mask = rearrange(padding_mask, "(n m) -> n 1 1 m", m=self.ball_size)
+            attn_bias = attn_bias.masked_fill(key_mask, float("-inf"))
         x = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
         x = rearrange(x, "n H m E -> (n m) (H E)", H=self.num_heads, m=self.ball_size)
         return self.proj(x)
@@ -91,8 +99,9 @@ class ErwinTransformerBlock(nn.Module):
         self.BMSA = BallMSA(dim, num_heads, ball_size, dimensionality)
         self.swiglu = SwiGLU(dim, dim * mlp_ratio)
 
-    def forward(self, x: torch.Tensor, pos: torch.Tensor):
-        x = x + self.BMSA(self.norm1(x), pos)
+    def forward(self, x: torch.Tensor, pos: torch.Tensor,
+                padding_mask: torch.Tensor = None):
+        x = x + self.BMSA(self.norm1(x), pos, padding_mask)
         return x + self.swiglu(self.norm2(x))
 
 
@@ -177,7 +186,7 @@ class ParticleErwinBlock(nn.Module):
         P, N, C = x.shape
         x_t = x.permute(1, 0, 2)   # (N, P, C)
 
-        all_x_in, all_pos_in, scatter_info = [], [], []
+        all_x_in, all_pos_in, all_mask_in, scatter_info = [], [], [], []
 
         for n in range(N):
             if padding_mask is not None:
@@ -199,32 +208,39 @@ class ParticleErwinBlock(nn.Module):
             real_x   = real_x[sort_idx]
             real_pos = real_pos[sort_idx]
 
-            # Pad to a multiple of ball_size by repeating the last particle
+            # Pad to a multiple of ball_size by repeating the last particle.
+            # The repeated slots are flagged so BallMSA can exclude them as
+            # keys/values (they are real-particle duplicates, not information).
             pad_size   = (self.ball_size - num_real % self.ball_size) % self.ball_size
             padded_len = num_real + pad_size
+            pad_mask   = torch.zeros(padded_len, dtype=torch.bool, device=x.device)
             if pad_size > 0:
                 real_x   = torch.cat([real_x,   real_x[-1:].expand(pad_size, C)], dim=0)
                 real_pos = torch.cat([real_pos, real_pos[-1:].expand(pad_size, 2)], dim=0)
+                pad_mask[num_real:] = True
 
             # Cross-ball attention: cyclically roll the sorted sequence by half
             # a ball, so each ball of this layer straddles two balls of the
-            # unshifted layers (positions roll together with their features).
+            # unshifted layers (positions/mask roll together with their features).
             # With a single ball this permutes members within the ball, which
             # leaves the (permutation-equivariant) attention output unchanged.
             if self.shift:
                 real_x   = torch.roll(real_x,   shifts=-self.half_ball, dims=0)
                 real_pos = torch.roll(real_pos, shifts=-self.half_ball, dims=0)
+                pad_mask = torch.roll(pad_mask, shifts=-self.half_ball, dims=0)
 
             all_x_in.append(real_x)
             all_pos_in.append(real_pos)
+            all_mask_in.append(pad_mask)
             scatter_info.append((num_real, sort_idx, real_mask, padded_len))
 
         if not all_x_in:
             return x
 
-        x_cat   = torch.cat(all_x_in,   dim=0)   # (total_padded, C)
-        pos_cat = torch.cat(all_pos_in,  dim=0)   # (total_padded, 2)
-        out_cat = self.block(x_cat, pos_cat)       # (total_padded, C)
+        x_cat    = torch.cat(all_x_in,    dim=0)   # (total_padded, C)
+        pos_cat  = torch.cat(all_pos_in,  dim=0)   # (total_padded, 2)
+        mask_cat = torch.cat(all_mask_in, dim=0)   # (total_padded,)
+        out_cat  = self.block(x_cat, pos_cat, mask_cat)   # (total_padded, C)
 
         x_out  = x_t.clone()
         offset = 0
