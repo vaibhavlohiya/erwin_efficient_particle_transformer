@@ -1,0 +1,135 @@
+# ErwinParTv2 on the full JetClass dataset (NRP Nautilus, namespace cms-ml).
+#
+# Follows the pattern of pods/eeptv2.yaml: clone the fork into /code, install
+# requirements, symlink /output over ./training so checkpoints land on the PVC,
+# then hand off to train_JetClass.sh.
+#
+#   kubectl -n cms-ml apply -f kube/erwinpartv2-job.yml
+#   kubectl -n cms-ml logs -f job/vleept-erwinpartv2
+#   kubectl -n cms-ml delete job vleept-erwinpartv2
+#
+# Before applying, set BRANCH below to the branch carrying networks/erwin_part/.
+#
+# Notes specific to this model, as against the v1 ErwinParT job:
+#   * batch 512, not 16 - the per-jet Python loop is gone, so it trains at ParT's
+#     own batch size.
+#   * TREE_ON_CPU is left at its default (on). The ball tree is a chain of tiny
+#     sequential sorts; on the CUDA side the launch overhead is smaller than on
+#     MPS, so measure both ways before assuming. Override with
+#     `-o tree_on_cpu False` if the GPU build wins on 4090s.
+#   * NCCL_P2P_DISABLE / NCCL_IB_DISABLE mirror train_JetClass.sh's own
+#     workarounds for multi-GPU sync on this cluster; harmless on 1 GPU.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vleept-erwinpartv2
+  namespace: cms-ml
+  labels:
+    jobgroup: erwinpartv2
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        jobgroup: erwinpartv2
+    spec:
+      restartPolicy: Never
+      tolerations:
+        - key: "nautilus.io/hardware"
+          operator: "Equal"
+          value: "large-gpu"
+          effect: "NoSchedule"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nvidia.com/gpu.product
+                    operator: In
+                    values:
+                      - NVIDIA-GeForce-RTX-4090
+                      - NVIDIA-A40
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - ry-gpu-10.sdsc.optiputer.net
+      containers:
+        - name: erwinpartv2
+          image: gitlab-registry.nrp-nautilus.io/jmduarte/hbb_interaction_network:latest
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+
+              BRANCH="${BRANCH:-erwin_block}"
+              REPO="https://github.com/vaibhavlohiya/erwin_efficient_particle_transformer.git"
+
+              mkdir -p /code && cd /code
+              git clone -b "$BRANCH" "$REPO" .
+              git rev-parse --short HEAD
+
+              [ -f requirements.txt ] && pip install -r requirements.txt
+
+              # Checkpoints and tensorboard land on the output PVC.
+              ln -sfn /output /code/training
+
+              # Fail fast on the plugin contract rather than after the data loads.
+              python - <<'CHECK'
+              import importlib.util, torch
+              from weaver.utils.data.config import DataConfig
+              dc = DataConfig.load("data/JetClass/JetClass_full.yaml", load_observers=False)
+              spec = importlib.util.spec_from_file_location("n", "networks/example_ErwinParTv2.py")
+              m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+              model, _ = m.get_model(dc)
+              n = sum(p.numel() for p in model.parameters())
+              print(f"plugin OK: {n/1e6:.2f}M params, {len(dc.label_value)} classes", flush=True)
+              CHECK
+
+              chmod +x ./train_JetClass.sh
+              echo "starting ErwinParTv2 on $(nvidia-smi --query-gpu=name --format=csv,noheader)"
+              ./train_JetClass.sh ErwinParTv2 full \
+                --num-workers 4 \
+                --fetch-step 0.01
+          env:
+            - name: BRANCH
+              value: "erwin_block"
+            - name: PYTHONPATH
+              value: "/code"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: DATA_PATH
+              value: "/data"
+            - name: OUTPUT_PATH
+              value: "/output"
+            - name: DATADIR_JetClass
+              value: "/data/JetClass"
+            - name: COMMENT
+              value: "v2-balltree-full"
+            - name: DDP_NGPUS
+              value: "1"
+            - name: NCCL_P2P_DISABLE
+              value: "1"
+            - name: NCCL_IB_DISABLE
+              value: "1"
+          volumeMounts:
+            - name: data-volume
+              mountPath: "/data"
+              readOnly: true
+            - name: output-volume
+              mountPath: "/output"
+          resources:
+            limits:
+              nvidia.com/gpu: "1"
+              memory: "80Gi"
+              cpu: "8"
+            requests:
+              nvidia.com/gpu: "1"
+              memory: "80Gi"
+              cpu: "8"
+      volumes:
+        - name: data-volume
+          persistentVolumeClaim:
+            claimName: j-jepa-vol
+        - name: output-volume
+          persistentVolumeClaim:
+            claimName: vl-eept-vol

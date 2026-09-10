@@ -1,0 +1,23 @@
+[16:01:57] === erwin | 2.21M params | device mps | train 80000 val 10000 test 10000 ===
+[16:03:59] epoch   1/20  loss 1.4324  val acc 0.6385  val AUC 0.9380  121.6s  *
+[16:05:45] epoch   2/20  loss 0.9998  val acc 0.6589  val AUC 0.9513  106.1s  *
+[16:07:26] epoch   3/20  loss 0.8680  val acc 0.7052  val AUC 0.9567  101.1s  *
+[16:09:11] epoch   4/20  loss 0.7890  val acc 0.6779  val AUC 0.9548  104.8s
+[16:11:01] epoch   5/20  loss 0.7486  val acc 0.7303  val AUC 0.9640  109.5s  *
+[16:14:34] epoch   6/20  loss 0.7270  val acc 0.7308  val AUC 0.9643  141.6s  *
+[16:16:26] epoch   7/20  loss 0.6989  val acc 0.7225  val AUC 0.9633  111.2s
+[16:18:14] epoch   8/20  loss 0.6785  val acc 0.7531  val AUC 0.9677  108.3s  *
+[18:06:39] epoch   9/20  loss 0.6517  val acc 0.7424  val AUC 0.9666  218.3s
+[21:08:53] epoch  10/20  loss 0.6330  val acc 0.7533  val AUC 0.9686  214.4s  *
+[21:11:12] epoch  11/20  loss 0.6059  val acc 0.7684  val AUC 0.9700  139.2s  *
+[21:13:02] epoch  12/20  loss 0.5831  val acc 0.7668  val AUC 0.9704  109.7s
+[21:14:46] epoch  13/20  loss 0.5597  val acc 0.7659  val AUC 0.9704  103.8s
+[21:16:31] epoch  14/20  loss 0.5293  val acc 0.7631  val AUC 0.9700  105.4s
+[21:18:21] epoch  15/20  loss 0.5012  val acc 0.7655  val AUC 0.9695  109.8s
+[21:20:05] epoch  16/20  loss 0.4741  val acc 0.7668  val AUC 0.9699  104.0s
+[21:22:00] epoch  17/20  loss 0.4498  val acc 0.7687  val AUC 0.9692  114.8s  *
+[21:24:01] epoch  18/20  loss 0.4318  val acc 0.7666  val AUC 0.9693  121.3s
+[21:25:50] epoch  19/20  loss 0.4166  val acc 0.7675  val AUC 0.9693  108.5s
+[21:27:34] epoch  20/20  loss 0.4118  val acc 0.7682  val AUC 0.9694  104.3s
+[21:27:39] TEST  acc 0.7684  AUC 0.9704  (41.1 min)
+[21:27:39]   rej50: Hbb 1017  Hcc 1017  Hgg 56  H4q 1017  Hqql 1017  Zqq 203  Wqq 145  Tbqq 1017  Tbl 1017

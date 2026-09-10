@@ -38,6 +38,11 @@ elif [[ "$model" == "LinformerPairWise" ]]; then
 elif [[ "$model" == "ErwinParT" ]]; then
     modelopts="networks/example_ErwinParticleTransformer.py --use-amp"
     batchopts="--batch-size 16 --start-lr 1e-3"
+elif [[ "$model" == "ErwinParTv2" ]]; then
+    # Hierarchical ball-tree ParT. Unlike v1 there is no per-jet Python loop, so
+    # this runs at ParT's own batch size rather than 16.
+    modelopts="networks/example_ErwinParTv2.py --use-amp"
+    batchopts="--batch-size 512 --start-lr 1e-3"
 elif [[ "$model" == "ReformerParT" ]]; then
     modelopts="networks/example_ReformerParticleTransformer.py --use-amp"
     batchopts="--batch-size 512 --start-lr 1e-3"

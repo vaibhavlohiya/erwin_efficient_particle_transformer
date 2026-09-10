@@ -1,0 +1,7 @@
+[22:58:26] loaded 100000 jets in 13.3s | device mps
+[22:58:26] split 80000/10000/10000 | epochs 20 batch 256 lr 0.001
+[22:58:26] === part | 2.14M params | device mps | train 80000 val 10000 test 10000 ===
+/opt/homebrew/Caskroom/miniconda/base/envs/weaver/lib/python3.11/site-packages/weaver/nn/model/ParticleTransformer.py:549: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=self.use_amp):
+/opt/homebrew/Caskroom/miniconda/base/envs/weaver/lib/python3.11/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(

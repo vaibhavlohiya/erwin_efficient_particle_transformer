@@ -1,0 +1,38 @@
+[16:01:57] loaded 100000 jets in 4.5s | device mps
+[16:01:57] split 80000/10000/10000 | epochs 20 batch 256 lr 0.001
+[22:58:26] loaded 100000 jets in 13.3s | device mps
+[22:58:26] split 80000/10000/10000 | epochs 20 batch 256 lr 0.001
+[23:28:37] loaded 4000 jets in 4.5s | device mps
+[23:28:37] split 3200/400/400 | epochs 1 batch 128 lr 0.001
+[23:29:06] loaded 100000 jets in 4.5s | device mps
+[23:29:06] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[23:52:56] loaded 100000 jets in 5.0s | device mps
+[23:52:56] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[00:21:22] loaded 100000 jets in 4.4s | device mps
+[00:21:22] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[00:52:49] loaded 100000 jets in 4.4s | device mps
+[00:52:49] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[11:19:59] loaded 100000 jets in 7.2s | device mps
+[11:19:59] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[11:41:32] loaded 100000 jets in 4.5s | device mps
+[11:41:32] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[12:08:01] loaded 100000 jets in 4.9s | device mps
+[12:08:01] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[12:32:19] loaded 100000 jets in 4.8s | device mps
+[12:32:19] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[12:50:42] loaded 100000 jets in 5.0s | device mps
+[12:50:42] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[13:14:15] loaded 100000 jets in 5.2s | device mps
+[13:14:15] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[14:39:54] loaded 100000 jets in 6.6s | device mps
+[14:39:54] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[16:37:23] loaded 100000 jets in 8.2s | device mps
+[16:37:23] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[17:40:11] loaded 100000 jets in 6.3s | device mps
+[17:40:11] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[18:06:39] loaded 100000 jets in 4.8s | device mps
+[18:06:39] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[18:29:39] loaded 100000 jets in 5.0s | device mps
+[18:29:39] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[18:49:47] loaded 100000 jets in 4.7s | device mps
+[18:49:47] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001

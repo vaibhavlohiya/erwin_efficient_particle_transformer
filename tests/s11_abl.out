@@ -1,0 +1,109 @@
+=== rot0 (11:19) ===
+[11:19:59] loaded 100000 jets in 7.2s | device mps
+[11:19:59] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[11:20:00] === erwin_rot0 | 2.21M params | ball 8 | rotate 0.0 | device mps | train 80000 val 10000 test 10000 ===
+[11:21:45] epoch   1/12  loss 1.3998  val acc 0.6212  val AUC 0.9389  104.3s  *
+[11:23:26] epoch   2/12  loss 0.9466  val acc 0.6996  val AUC 0.9537  101.8s  *
+[11:25:13] epoch   3/12  loss 0.8342  val acc 0.7239  val AUC 0.9617  106.4s  *
+[11:27:01] epoch   4/12  loss 0.7707  val acc 0.7118  val AUC 0.9607  108.2s
+[11:28:39] epoch   5/12  loss 0.7396  val acc 0.7304  val AUC 0.9643   97.9s  *
+[11:30:16] epoch   6/12  loss 0.7019  val acc 0.7489  val AUC 0.9669   96.7s  *
+[11:31:53] epoch   7/12  loss 0.6671  val acc 0.7539  val AUC 0.9673   97.4s  *
+[11:33:31] epoch   8/12  loss 0.6326  val acc 0.7598  val AUC 0.9698   98.2s  *
+[11:35:07] epoch   9/12  loss 0.6010  val acc 0.7623  val AUC 0.9699   96.1s  *
+[11:36:43] epoch  10/12  loss 0.5691  val acc 0.7682  val AUC 0.9707   96.2s  *
+[11:38:25] epoch  11/12  loss 0.5433  val acc 0.7706  val AUC 0.9713  101.4s  *
+[11:40:17] epoch  12/12  loss 0.5275  val acc 0.7726  val AUC 0.9714  111.7s  *
+[11:41:18] TEST  acc 0.7641  AUC 0.9696  (21.3 min)
+[11:41:18]   rej50: Hbb 1017  Hcc 1017  Hgg 60  H4q 1017  Hqql 1017  Zqq 170  Wqq 127  Tbqq 508  Tbl 1017
+=== noU (11:41) ===
+[11:41:32] loaded 100000 jets in 4.5s | device mps
+[11:41:32] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[11:41:32] === erwin_noU | 2.20M params | ball 8 | rotate 45.0 | device mps | train 80000 val 10000 test 10000 ===
+[11:43:14] epoch   1/12  loss 1.4140  val acc 0.5794  val AUC 0.9270  100.6s  *
+[11:44:51] epoch   2/12  loss 0.9653  val acc 0.6674  val AUC 0.9514   97.1s  *
+[11:53:07] epoch   3/12  loss 0.8432  val acc 0.6912  val AUC 0.9557  163.3s  *
+[11:54:43] epoch   4/12  loss 0.7938  val acc 0.7004  val AUC 0.9571   96.4s  *
+[11:56:17] epoch   5/12  loss 0.7525  val acc 0.7145  val AUC 0.9614   93.6s  *
+[11:57:58] epoch   6/12  loss 0.7185  val acc 0.7400  val AUC 0.9652  101.3s  *
+[11:59:39] epoch   7/12  loss 0.6798  val acc 0.7501  val AUC 0.9670  100.9s  *
+[12:01:17] epoch   8/12  loss 0.6439  val acc 0.7465  val AUC 0.9667   97.3s
+[12:02:53] epoch   9/12  loss 0.6134  val acc 0.7581  val AUC 0.9691   96.1s  *
+[12:04:28] epoch  10/12  loss 0.5796  val acc 0.7621  val AUC 0.9693   94.9s  *
+[12:06:00] epoch  11/12  loss 0.5524  val acc 0.7590  val AUC 0.9696   92.0s
+[12:07:32] epoch  12/12  loss 0.5372  val acc 0.7612  val AUC 0.9696   92.1s
+[12:07:48] TEST  acc 0.7675  AUC 0.9702  (20.7 min)
+[12:07:48]   rej50: Hbb 1017  Hcc 1017  Hgg 60  H4q 339  Hqql 1017  Zqq 145  Wqq 203  Tbqq 1017  Tbl 1017
+=== noD (12:07) ===
+[12:08:01] loaded 100000 jets in 4.9s | device mps
+[12:08:01] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[12:08:01] === erwin_noD | 2.21M params | ball 8 | rotate 45.0 | device mps | train 80000 val 10000 test 10000 ===
+[12:09:59] epoch   1/12  loss 1.3897  val acc 0.6087  val AUC 0.9352  117.7s  *
+[12:11:46] epoch   2/12  loss 0.9555  val acc 0.7010  val AUC 0.9548  106.9s  *
+[12:13:34] epoch   3/12  loss 0.8276  val acc 0.7225  val AUC 0.9593  107.9s  *
+[12:15:25] epoch   4/12  loss 0.7714  val acc 0.7309  val AUC 0.9631  110.8s  *
+[12:17:14] epoch   5/12  loss 0.7298  val acc 0.6838  val AUC 0.9568  109.7s
+[12:19:02] epoch   6/12  loss 0.6980  val acc 0.7537  val AUC 0.9682  108.1s  *
+[12:20:50] epoch   7/12  loss 0.6584  val acc 0.7569  val AUC 0.9681  107.3s  *
+[12:22:37] epoch   8/12  loss 0.6260  val acc 0.7647  val AUC 0.9701  106.8s  *
+[12:24:26] epoch   9/12  loss 0.5920  val acc 0.7692  val AUC 0.9704  109.3s  *
+[12:26:15] epoch  10/12  loss 0.5574  val acc 0.7691  val AUC 0.9705  109.3s
+[12:28:10] epoch  11/12  loss 0.5312  val acc 0.7758  val AUC 0.9713  115.1s  *
+[12:30:11] epoch  12/12  loss 0.5160  val acc 0.7742  val AUC 0.9713  120.5s
+[12:32:05] TEST  acc 0.7683  AUC 0.9700  (24.1 min)
+[12:32:05]   rej50: Hbb 1017  Hcc 1017  Hgg 56  H4q 508  Hqql 1017  Zqq 339  Wqq 102  Tbqq 339  Tbl 1017
+=== fine (12:32) ===
+[12:32:19] loaded 100000 jets in 4.8s | device mps
+[12:32:19] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[12:32:19] === erwin_fine | 2.21M params | ball 8 | rotate 45.0 | device mps | train 80000 val 10000 test 10000 ===
+[12:33:52] epoch   1/12  loss 1.3844  val acc 0.6374  val AUC 0.9381   92.1s  *
+[12:35:19] epoch   2/12  loss 0.9504  val acc 0.6817  val AUC 0.9526   86.6s  *
+[12:36:41] epoch   3/12  loss 0.8352  val acc 0.7102  val AUC 0.9584   82.4s  *
+[12:38:04] epoch   4/12  loss 0.7821  val acc 0.6975  val AUC 0.9566   82.9s
+[12:39:26] epoch   5/12  loss 0.7460  val acc 0.7239  val AUC 0.9627   82.2s  *
+[12:40:49] epoch   6/12  loss 0.7132  val acc 0.7376  val AUC 0.9649   82.8s  *
+[12:42:08] epoch   7/12  loss 0.6761  val acc 0.7486  val AUC 0.9665   79.1s  *
+[12:43:29] epoch   8/12  loss 0.6438  val acc 0.7543  val AUC 0.9686   80.7s  *
+[12:44:48] epoch   9/12  loss 0.6118  val acc 0.7577  val AUC 0.9687   79.5s  *
+[12:46:09] epoch  10/12  loss 0.5814  val acc 0.7594  val AUC 0.9693   80.7s  *
+[12:47:30] epoch  11/12  loss 0.5567  val acc 0.7643  val AUC 0.9697   81.0s  *
+[12:48:53] epoch  12/12  loss 0.5431  val acc 0.7639  val AUC 0.9698   82.8s
+[12:50:31] TEST  acc 0.7597  AUC 0.9683  (18.2 min)
+[12:50:31]   rej50: Hbb 1017  Hcc 1017  Hgg 60  H4q 339  Hqql 1017  Zqq 145  Wqq 203  Tbqq 339  Tbl 1017
+=== coarse (12:50) ===
+[12:50:42] loaded 100000 jets in 5.0s | device mps
+[12:50:42] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[12:50:42] === erwin_coarse | 2.21M params | ball 8 | rotate 45.0 | device mps | train 80000 val 10000 test 10000 ===
+[12:52:28] epoch   1/12  loss 1.4666  val acc 0.5979  val AUC 0.9222  105.8s  *
+[12:54:10] epoch   2/12  loss 0.9945  val acc 0.6666  val AUC 0.9539  101.3s  *
+[12:55:51] epoch   3/12  loss 0.8570  val acc 0.7001  val AUC 0.9558  100.7s  *
+[12:57:32] epoch   4/12  loss 0.8046  val acc 0.6840  val AUC 0.9555  101.1s
+[12:59:13] epoch   5/12  loss 0.7576  val acc 0.7162  val AUC 0.9612  101.3s  *
+[13:00:56] epoch   6/12  loss 0.7238  val acc 0.7317  val AUC 0.9658  103.1s  *
+[13:02:38] epoch   7/12  loss 0.6822  val acc 0.7095  val AUC 0.9618  102.2s
+[13:04:39] epoch   8/12  loss 0.6527  val acc 0.7566  val AUC 0.9688  120.7s  *
+[13:06:28] epoch   9/12  loss 0.6163  val acc 0.7648  val AUC 0.9702  108.9s  *
+[13:08:23] epoch  10/12  loss 0.5834  val acc 0.7707  val AUC 0.9715  115.7s  *
+[13:10:16] epoch  11/12  loss 0.5664  val acc 0.7131  val AUC 0.9646  112.5s
+[13:12:10] epoch  12/12  loss 0.5434  val acc 0.7725  val AUC 0.9718  114.1s  *
+[13:14:01] TEST  acc 0.7650  AUC 0.9709  (23.3 min)
+[13:14:01]   rej50: Hbb 1017  Hcc 1017  Hgg 44  H4q 1017  Hqql 1017  Zqq 203  Wqq 170  Tbqq 508  Tbl 1017
+=== logpolar (13:14) ===
+[13:14:15] loaded 100000 jets in 5.2s | device mps
+[13:14:15] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[13:14:15] === erwin_logpolar | 2.21M params | ball 8 | rotate 45.0 | device mps | train 80000 val 10000 test 10000 ===
+[13:16:28] epoch   1/12  loss 1.4005  val acc 0.5982  val AUC 0.9363  132.2s  *
+[13:18:29] epoch   2/12  loss 0.9537  val acc 0.7002  val AUC 0.9570  120.7s  *
+[13:20:34] epoch   3/12  loss 0.8191  val acc 0.7169  val AUC 0.9583  125.1s  *
+[13:22:54] epoch   4/12  loss 0.7654  val acc 0.7209  val AUC 0.9605  140.5s  *
+[13:25:03] epoch   5/12  loss 0.7289  val acc 0.7147  val AUC 0.9614  128.6s
+[13:26:53] epoch   6/12  loss 0.6922  val acc 0.7470  val AUC 0.9672  110.5s  *
+[13:28:46] epoch   7/12  loss 0.6543  val acc 0.7531  val AUC 0.9672  113.1s  *
+[13:30:35] epoch   8/12  loss 0.6240  val acc 0.7640  val AUC 0.9695  108.5s  *
+[13:32:24] epoch   9/12  loss 0.5866  val acc 0.7696  val AUC 0.9705  108.7s  *
+[13:34:13] epoch  10/12  loss 0.5542  val acc 0.7699  val AUC 0.9707  109.6s  *
+[13:36:03] epoch  11/12  loss 0.5276  val acc 0.7742  val AUC 0.9711  109.4s  *
+[13:37:54] epoch  12/12  loss 0.5124  val acc 0.7725  val AUC 0.9711  111.3s
+[13:39:38] TEST  acc 0.7707  AUC 0.9708  (25.4 min)
+[13:39:38]   rej50: Hbb 1017  Hcc 1017  Hgg 64  H4q 1017  Hqql 1017  Zqq 254  Wqq 170  Tbqq 508  Tbl 1017
+=== ablations complete 13:39 ===

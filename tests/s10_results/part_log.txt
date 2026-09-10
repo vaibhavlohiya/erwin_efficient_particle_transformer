@@ -1,0 +1,2 @@
+[21:27:40] === part | 2.14M params | device mps | train 80000 val 10000 test 10000 ===
+[22:58:26] === part | 2.14M params | device mps | train 80000 val 10000 test 10000 ===

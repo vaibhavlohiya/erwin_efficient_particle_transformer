@@ -130,3 +130,11 @@ dmypy.json
 # Pyre type checker
 .pyre/
 *.vscode
+# Local JetClass sample (130 MB, over GitHub's 100 MB limit) - fetch it with
+# ./get_datasets.py or copy it from the workspace root.
+*.root
+
+# S10/S11 training checkpoints (~8.5 MB each). The *_result/_history/_roc.json
+# next to them are committed - those are what tests/make_plots.py reads.
+tests/s10_results/*.pt
+tests/s10_results/*.out

@@ -1,0 +1,15 @@
+[00:52:49] === erwin_m64 | 2.21M params | ball 64 | rotate 45.0 | device mps | train 80000 val 10000 test 10000 ===
+[00:56:11] epoch   1/12  loss 1.3799  val acc 0.5965  val AUC 0.9317  201.0s  *
+[00:59:36] epoch   2/12  loss 0.9102  val acc 0.6975  val AUC 0.9559  205.5s  *
+[01:03:00] epoch   3/12  loss 0.7984  val acc 0.7162  val AUC 0.9607  203.8s  *
+[01:06:32] epoch   4/12  loss 0.7482  val acc 0.7227  val AUC 0.9629  211.6s  *
+[01:10:00] epoch   5/12  loss 0.7136  val acc 0.7383  val AUC 0.9651  208.4s  *
+[01:13:38] epoch   6/12  loss 0.6728  val acc 0.7482  val AUC 0.9673  218.2s  *
+[01:17:18] epoch   7/12  loss 0.6425  val acc 0.7614  val AUC 0.9694  219.4s  *
+[01:20:54] epoch   8/12  loss 0.6090  val acc 0.7672  val AUC 0.9714  216.5s  *
+[01:24:29] epoch   9/12  loss 0.5768  val acc 0.7729  val AUC 0.9717  214.2s  *
+[01:28:36] epoch  10/12  loss 0.5478  val acc 0.7780  val AUC 0.9723  247.3s  *
+[01:32:18] epoch  11/12  loss 0.5253  val acc 0.7789  val AUC 0.9728  221.7s  *
+[01:36:02] epoch  12/12  loss 0.5123  val acc 0.7804  val AUC 0.9729  224.3s  *
+[01:42:51] TEST  acc 0.7701  AUC 0.9714  (50.0 min)
+[01:42:51]   rej50: Hbb 1017  Hcc 1017  Hgg 54  H4q 254  Hqql 1017  Zqq 203  Wqq 113  Tbqq 508  Tbl 1017

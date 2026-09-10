@@ -1,0 +1,15 @@
+[18:49:47] === erwin_s1_logpolar | 2.21M params | L 64 | ball 8 | rotate 45.0 | device mps | train 80000 val 10000 test 10000 ===
+[18:51:49] epoch   1/12  loss 1.3875  val acc 0.6345  val AUC 0.9366  121.7s  *
+[18:53:45] epoch   2/12  loss 0.9598  val acc 0.6770  val AUC 0.9525  115.7s  *
+[18:55:40] epoch   3/12  loss 0.8236  val acc 0.7264  val AUC 0.9608  115.2s  *
+[18:57:34] epoch   4/12  loss 0.7660  val acc 0.7484  val AUC 0.9645  114.2s  *
+[18:59:47] epoch   5/12  loss 0.7267  val acc 0.7354  val AUC 0.9637  132.9s
+[19:01:46] epoch   6/12  loss 0.6898  val acc 0.7258  val AUC 0.9641  118.6s
+[19:03:43] epoch   7/12  loss 0.6594  val acc 0.7475  val AUC 0.9678  117.2s
+[19:05:34] epoch   8/12  loss 0.6213  val acc 0.7541  val AUC 0.9687  110.7s  *
+[19:07:25] epoch   9/12  loss 0.5864  val acc 0.7689  val AUC 0.9709  111.6s  *
+[19:09:16] epoch  10/12  loss 0.5563  val acc 0.7767  val AUC 0.9724  111.0s  *
+[19:11:07] epoch  11/12  loss 0.5294  val acc 0.7819  val AUC 0.9726  111.0s  *
+[19:12:58] epoch  12/12  loss 0.5134  val acc 0.7798  val AUC 0.9726  110.3s
+[19:14:32] TEST  acc 0.7672  AUC 0.9712  (24.7 min)
+[19:14:32]   rej50: Hbb 967  Hcc 967  Hgg 57  H4q 484  Hqql 967  Zqq 138  Wqq 242  Tbqq 967  Tbl 967
