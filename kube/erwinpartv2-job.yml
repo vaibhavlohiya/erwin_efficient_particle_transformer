@@ -8,7 +8,8 @@
 #   kubectl -n cms-ml logs -f job/vleept-erwinpartv2
 #   kubectl -n cms-ml delete job vleept-erwinpartv2
 #
-# Before applying, set BRANCH below to the branch carrying networks/erwin_part/.
+# BRANCH is the branch carrying networks/erwin_part/; override it in the env block
+# below (or with `kubectl set env`) to run a different one.
 #
 # Notes specific to this model, as against the v1 ErwinParT job:
 #   * batch 512, not 16 - the per-jet Python loop is gone, so it trains at ParT's
@@ -61,7 +62,7 @@ spec:
             - |
               set -euo pipefail
 
-              BRANCH="${BRANCH:-erwin_block}"
+              BRANCH="${BRANCH:-ErwinParT}"
               REPO="https://github.com/vaibhavlohiya/erwin_efficient_particle_transformer.git"
 
               mkdir -p /code && cd /code
@@ -92,7 +93,7 @@ spec:
                 --fetch-step 0.01
           env:
             - name: BRANCH
-              value: "erwin_block"
+              value: "ErwinParT"
             - name: PYTHONPATH
               value: "/code"
             - name: PYTHONUNBUFFERED
