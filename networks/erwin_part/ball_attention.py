@@ -29,8 +29,18 @@ The residual structure is ParT's, not Erwin's: `c_attn` head scaling, `w_resid`,
 and pre/post LayerNorm are what keep deep ParT stacks trainable, and they let
 ParT's hyperparameters transfer unchanged. Only the FFN is Erwin's SwiGLU.
 
-`-1e9` rather than `-inf` for masked keys: on MPS a fully-masked softmax row
-returns NaN, and a large finite penalty behaves identically everywhere else.
+A large finite penalty rather than `-inf` for masked keys: a fully-masked
+softmax row returns NaN on MPS, whereas a finite penalty leaves the row uniform
+over values that are zeroed downstream anyway.
+
+The magnitude matters, and `-1e9` was the wrong one. Under `--use-amp` weaver
+runs the model in fp16, and `scaled_dot_product_attention` casts `attn_mask` to
+the query dtype - where -1e9 overflows to -inf, reintroducing exactly the NaN
+this sentinel exists to avoid. Fully-masked balls are not an edge case: padding
+is pushed to the end of the tree order, so a 3-constituent jet at L=64 leaves 7
+of 8 level-0 balls entirely invalid, and a median 39-constituent jet leaves 3.
+`-1e4` is representable in fp16 and still underflows the softmax to exactly
+zero in fp32, so fp32 results are unchanged.
 """
 from __future__ import annotations
 
@@ -40,7 +50,8 @@ import torch.nn.functional as F
 
 from .geometry import delta_r, masked_centroid
 
-NEG = -1e9
+# Finite, and within fp16 range (max 65504) so it survives autocast's downcast.
+NEG = -1e4
 
 
 class SwiGLU(nn.Module):

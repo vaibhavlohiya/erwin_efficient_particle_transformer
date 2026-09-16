@@ -41,6 +41,9 @@ elif [[ "$model" == "LinformerPairWise" ]]; then
 elif [[ "$model" == "ErwinParT" ]]; then
     modelopts="networks/example_ErwinParticleTransformer.py --use-amp"
     batchopts="--batch-size 512 --start-lr 1e-3"
+elif [[ "$model" == "ErwinParTv2" ]]; then
+    modelopts="networks/example_ErwinParTv2.py --use-amp"
+    batchopts="--batch-size 512 --start-lr 1e-3"
 elif [[ "$model" == "PN" ]]; then
     modelopts="networks/example_ParticleNet.py"
     batchopts="--batch-size 512 --start-lr 1e-2"
@@ -76,6 +79,22 @@ fi
 # currently only Pythia
 SAMPLE_TYPE=Pythia
 
+# Where to read the trained checkpoint from.
+#
+# `{auto}` is expanded by weaver as
+#     <timestamp>_<network config>_<optim>_lr<lr>_batch<batch>
+# so a predict run re-expands it to a NEW timestamp and can never match the
+# directory a training run wrote. Set RUN_DIR to that directory (the training
+# job prints it, and Cluster/docs/RUNS.md records it) to predict from a real
+# run. Left unset, the historical path is reproduced exactly.
+if [[ -n ${RUN_DIR} ]]; then
+    modelprefix="${RUN_DIR}/net"
+    predictoutput="${RUN_DIR}/predict_output/pred.root"
+else
+    modelprefix="/output/training/JetClass/${SAMPLE_TYPE}/${FEATURE_TYPE}/${model}/{auto}${suffix}/net"
+    predictoutput="/output/pred.root"
+fi
+
 $CMD \
     --predict \
     --data-test \
@@ -90,9 +109,9 @@ $CMD \
     "ZToQQ:${DATADIR}/${SAMPLE_TYPE}/test_20M/ZToQQ_*.root" \
     "ZJetsToNuNu:${DATADIR}/${SAMPLE_TYPE}/test_20M/ZJetsToNuNu_*.root" \
     --data-config data/JetClass/JetClass_${FEATURE_TYPE}.yaml --network-config $modelopts \
-    --model-prefix /output/training/JetClass/${SAMPLE_TYPE}/${FEATURE_TYPE}/${model}/{auto}${suffix}/net \
+    --model-prefix "${modelprefix}" \
     $dataopts $batchopts \
     --samples-per-epoch ${samples_per_epoch} --samples-per-epoch-val ${samples_per_epoch_val} --num-epochs $epochs --gpus 0 \
-    --optimizer ranger --predict-output /output/pred.root \
+    --optimizer ranger --predict-output "${predictoutput}" \
     --tensorboard /output/tensorboard_logs/JetClass_${SAMPLE_TYPE}_${FEATURE_TYPE}_${model}${suffix} \
     "${@:3}"

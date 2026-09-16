@@ -1,1 +1,15 @@
+# Installed by the kube jobs with `pip install -r requirements.txt` against a
+# prebuilt HEP-ML image, so these are FLOORS, not exact pins.
+#
+# torch is deliberately absent: the image ships a CUDA-matched build, and a pin
+# here would let pip replace it with a wheel compiled for a different CUDA (or
+# none). The image owns torch; the preflight in Cluster/jobs/ asserts the
+# version it finds and Cluster/docs/RUNS.md records it per run.
+#
+# weaver-core does not depend on torch (awkward, numpy, uproot, ... only), so
+# listing it cannot pull a second torch in.
+
 einops
+weaver-core>=0.4
+uproot>=5
+numpy>=1.24

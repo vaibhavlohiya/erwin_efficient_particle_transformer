@@ -93,6 +93,27 @@ fi
 # currently only Pythia
 SAMPLE_TYPE=Pythia
 
+# Persist the training log and the tensorboard event files.
+#
+# weaver's --tensorboard takes a COMMENT, not a path: it builds
+# SummaryWriter(comment=...), whose default log_dir is ./runs/<time>_<host><comment>
+# relative to the CWD. In a Kubernetes job the CWD is the container's ephemeral
+# filesystem, so the event files - and, with no --log, the training log too -
+# vanish when the pod exits. Setting LOG_DIR puts both somewhere durable, using
+# the same symlink trick the job manifests already use for ./training.
+# Unset, this reproduces the historical behaviour exactly.
+logopts=""
+if [[ -n ${LOG_DIR} ]]; then
+    mkdir -p "${LOG_DIR}/tensorboard"
+    if [[ -e ./runs && ! -L ./runs ]]; then
+        echo "WARNING: ./runs exists and is not a symlink; leaving it untouched." \
+             "Tensorboard events will stay on the container filesystem."
+    else
+        ln -sfn "${LOG_DIR}/tensorboard" ./runs
+    fi
+    logopts="--log ${LOG_DIR}/train.log"
+fi
+
 # NCCL override
 export NCCL_P2P_DISABLE=1
 export NCCL_IB_DISABLE=1
@@ -124,7 +145,7 @@ $CMD \
     "ZJetsToNuNu:${DATADIR}/${SAMPLE_TYPE}/test_20M/ZJetsToNuNu_*.root" \
     --data-config data/JetClass/JetClass_${FEATURE_TYPE}.yaml --network-config $modelopts \
     --model-prefix training/JetClass/${SAMPLE_TYPE}/${FEATURE_TYPE}/${model}/{auto}${suffix}/net \
-    $dataopts $batchopts \
+    $dataopts $batchopts $logopts \
     --samples-per-epoch ${samples_per_epoch} --samples-per-epoch-val ${samples_per_epoch_val} --num-epochs $epochs --gpus 0 \
     --optimizer ranger --predict-output pred.root \
     --tensorboard JetClass_${SAMPLE_TYPE}_${FEATURE_TYPE}_${model}${suffix} \

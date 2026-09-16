@@ -1,5 +1,17 @@
 import torch
-from particle_transformer.networks.EfficientParticleTransformer import EfficientParticleTransformer
+try:
+    from particle_transformer.networks.EfficientParticleTransformer import EfficientParticleTransformer
+except ImportError:
+    # The import above only resolves when the checkout is named
+    # `particle_transformer`. weaver loads this file by path, so anchor the
+    # import to this file's own repo as a fallback - that works whatever the
+    # directory is called, including the /code clone the kube jobs use.
+    import os
+    import sys
+    _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _REPO not in sys.path:
+        sys.path.insert(0, _REPO)
+    from networks.EfficientParticleTransformer import EfficientParticleTransformer
 from weaver.utils.logger import _logger
 
 '''
