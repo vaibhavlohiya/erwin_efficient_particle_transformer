@@ -123,7 +123,11 @@ Geometry for v2 comes from `pf_points` = `(part_deta, part_dphi)` as JetClass sh
 
 **Cluster jobs** (`kube/`): Kubernetes Jobs for NRP Nautilus, namespace `cms-ml`. They `git clone` this fork at a branch into `/code`, `pip install -r requirements.txt`, symlink `/output` → `/code/training`, then run `train_JetClass.sh`; `*-pred-job.yml` variants run `test_JetClass.sh`. `erwinpartv2-job.yml` is the best template for a new job — it adds a pre-flight `get_model(...)` check against the data config so a broken plugin fails in seconds instead of after the dataset loads. Prefer copying the nearest existing YAML; the affinity/toleration/PVC boilerplate is the fiddly part. `NCCL_P2P_DISABLE` / `NCCL_IB_DISABLE` in `train_JetClass.sh` work around multi-GPU sync on that cluster.
 
-**A job only runs code that is committed and pushed to the branch its YAML clones** (`BRANCH`, default `erwin_block`, in `erwinpartv2-job.yml`). Much of the v2 work is currently untracked — check `git status` before assuming a cluster run exercises what you just edited.
+**A job only runs code that is committed and pushed to the branch its YAML clones.** `kube/erwinpartv2-job.yml` clones `ErwinParT`; `Cluster/jobs/job.yml` clones `ErwinParTCluster`. Check `git status` and that you have pushed before assuming a cluster run exercises what you just edited — `Cluster/submit.sh` refuses to submit otherwise.
+
+**`Cluster/` is the entry point for cluster work** — one job template for train/predict/smoke/tests, a stable `RUN_ID` instead of weaver's `{auto}`, automatic resume, logs on the PVC, and a 10% JetClass default scope. `kube/` is untouched and still reproduces its old behaviour; see `kube/README.md` for the differences and `Cluster/docs/RUNBOOK.md` to run anything.
+
+v2 is committed (`8052aea` onward) and the working tree is clean; earlier revisions of this file described it as untracked.
 
 **Pre-trained models** (`models/*.pt`): JetClass-trained checkpoints for the `-FineTune` modes and as evaluation baselines.
 

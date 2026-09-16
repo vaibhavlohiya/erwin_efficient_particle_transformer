@@ -1,0 +1,83 @@
+# Assumption-checker. The FIRST thing to run on the cluster, before any job.
+#
+#   kubectl -n cms-ml apply -f Cluster/pods/probe.yml
+#   kubectl -n cms-ml logs -f vleept-probe
+#   kubectl -n cms-ml delete pod vleept-probe     # when done
+#
+# It answers, as facts rather than assumptions:
+#   * what torch / CUDA / weaver-core the image actually ships (requirements.txt
+#     deliberately does not pin torch, so this is the only record)
+#   * whether /data/JetClass really has the Pythia/{train_100M,val_5M,test_20M}
+#     layout train_JetClass.sh globs for
+#   * whether ONE node can mount both PVCs - they are on DIFFERENT storage
+#     classes (j-jepa-vol: rook-cephfs-central, vl-eept-vol: rook-cephfs), and
+#     if this pod schedules and both mounts appear, that question is settled
+#   * how much room is left on the 500Gi output PVC
+#
+# It sleeps afterwards so it can also serve `kubectl cp` for stage_testdata.sh.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vleept-probe
+  namespace: cms-ml
+  labels:
+    jobgroup: erwinpart-cluster
+spec:
+  restartPolicy: Never
+  tolerations:
+    - key: "nautilus.io/hardware"
+      operator: "Equal"
+      value: "large-gpu"
+      effect: "NoSchedule"
+  containers:
+    - name: probe
+      image: gitlab-registry.nrp-nautilus.io/jmduarte/hbb_interaction_network:latest
+      command: ["/bin/bash", "-lc"]
+      args:
+        - |
+          set +e
+          echo "=================== versions ==================="
+          python - <<'PY'
+          import importlib, sys
+          print("python  ", sys.version.split()[0])
+          for m in ("torch", "weaver", "uproot", "numpy", "einops", "awkward"):
+              try:
+                  mod = importlib.import_module(m)
+                  print(f"{m:8s} {getattr(mod, '__version__', '?')}")
+              except Exception as e:
+                  print(f"{m:8s} MISSING ({type(e).__name__})")
+          try:
+              import torch
+              print("cuda build", torch.version.cuda, "| available", torch.cuda.is_available())
+              if torch.cuda.is_available():
+                  print("device    ", torch.cuda.get_device_name(0))
+          except Exception as e:
+              print("torch probe failed:", e)
+          PY
+          echo "=================== gpu ==================="
+          nvidia-smi || echo "no nvidia-smi"
+          echo "=================== /data layout ==================="
+          ls /data/ 2>&1 | head
+          echo "--- JetClass ---";      ls /data/JetClass/ 2>&1 | head
+          echo "--- Pythia ---";        ls /data/JetClass/Pythia/ 2>&1 | head
+          for d in train_100M val_5M test_20M; do
+            echo "--- $d: $(ls /data/JetClass/Pythia/$d/ 2>/dev/null | wc -l) files ---"
+            ls /data/JetClass/Pythia/$d/ 2>/dev/null | head -3
+          done
+          echo "=================== mounts / space ==================="
+          df -h /data /output 2>&1
+          echo "--- /output contents ---"; ls -la /output/ 2>&1 | head -20
+          echo "=================== probe complete ==================="
+          echo "sleeping so this pod can serve kubectl cp; delete when done."
+          sleep 86400
+      volumeMounts:
+        - {name: data-volume,   mountPath: "/data", readOnly: true}
+        - {name: output-volume, mountPath: "/output"}
+      resources:
+        requests: {memory: "8Gi", cpu: "2", nvidia.com/gpu: "1"}
+        limits:   {memory: "8Gi", cpu: "2", nvidia.com/gpu: "1"}
+  volumes:
+    - name: data-volume
+      persistentVolumeClaim: {claimName: j-jepa-vol}
+    - name: output-volume
+      persistentVolumeClaim: {claimName: vl-eept-vol}

@@ -1,0 +1,27 @@
+# Jupyter against the output PVC, for inspecting checkpoints, logs and pred.root.
+# A copy of ../../pods/vleept-jupyter-pod.yaml, kept here so everything needed to
+# work with a run lives in one place. The original is untouched and still valid.
+#
+#   kubectl -n cms-ml apply -f Cluster/pods/jupyter.yml
+#   kubectl -n cms-ml port-forward vl-eept-jupyter 8888:8888
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vl-eept-jupyter
+  namespace: cms-ml
+spec:
+  containers:
+    - name: jupyter
+      image: jupyter/scipy-notebook:latest
+      ports:
+        - containerPort: 8888
+      volumeMounts:
+        - name: output-volume
+          mountPath: "/home/jovyan/output"
+      resources:
+        requests: {memory: "4Gi", cpu: "2"}
+        limits:   {memory: "4Gi", cpu: "2"}
+  volumes:
+    - name: output-volume
+      persistentVolumeClaim:
+        claimName: vl-eept-vol

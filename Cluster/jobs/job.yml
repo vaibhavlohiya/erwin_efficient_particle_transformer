@@ -1,0 +1,104 @@
+# The ONE job template for NRP Nautilus, namespace cms-ml. Every role - train,
+# predict, smoke, tests - is this file with different env; the affinity,
+# toleration and PVC boilerplate is the fiddly part and lives here only.
+#
+# Rendered by Cluster/Makefile: the @@TOKEN@@ placeholders are substituted with
+# sed. Do not apply this file directly - the tokens are not valid Kubernetes.
+#
+#   make -C Cluster smoke   MODEL=ErwinParTv2
+#   make -C Cluster train   MODEL=ErwinParTv2 TAG=v2-10pct
+#   make -C Cluster predict MODEL=ErwinParTv2 RUN_ID=<run-id-from-RUNS.md>
+#   make -C Cluster tests
+#   make -C Cluster logs    RUN_ID=<run-id>
+#
+# SCOPE: 10% of JetClass by default (DATA_FRACTION=0.1 and a matching
+# samples-per-epoch). Raising it is an explicit decision; see docs/RUNBOOK.md.
+#
+# This job clones @@BRANCH@@. A job only ever runs code that is COMMITTED AND
+# PUSHED to that branch - editing a file locally changes nothing here.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vleept-@@RUN_ID@@
+  namespace: cms-ml
+  labels:
+    jobgroup: erwinpart-cluster
+    run-id: "@@RUN_ID@@"
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 604800      # keep a week of finished jobs for inspection
+  activeDeadlineSeconds: @@DEADLINE@@
+  template:
+    metadata:
+      labels:
+        jobgroup: erwinpart-cluster
+        run-id: "@@RUN_ID@@"
+    spec:
+      restartPolicy: Never
+      tolerations:
+        - key: "nautilus.io/hardware"
+          operator: "Equal"
+          value: "large-gpu"
+          effect: "NoSchedule"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nvidia.com/gpu.product
+                    operator: In
+                    values:
+                      - NVIDIA-GeForce-RTX-4090
+                      - NVIDIA-A40
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - ry-gpu-10.sdsc.optiputer.net
+      containers:
+        - name: @@ROLE@@
+          image: @@IMAGE@@
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              mkdir -p /code && cd /code
+              git clone -b "$BRANCH" "$REPO" .
+              exec bash Cluster/scripts/entrypoint.sh
+          env:
+            - {name: ROLE,                  value: "@@ROLE@@"}
+            - {name: RUN_ID,                value: "@@RUN_ID@@"}
+            - {name: MODEL,                 value: "@@MODEL@@"}
+            - {name: FEATURE,               value: "@@FEATURE@@"}
+            - {name: BRANCH,                value: "@@BRANCH@@"}
+            - {name: IMAGE,                 value: "@@IMAGE@@"}
+            - {name: REPO,                  value: "https://github.com/vaibhavlohiya/erwin_efficient_particle_transformer.git"}
+            - {name: DATA_FRACTION,         value: "@@DATA_FRACTION@@"}
+            - {name: SAMPLES_PER_EPOCH,     value: "@@SAMPLES_PER_EPOCH@@"}
+            - {name: SAMPLES_PER_EPOCH_VAL, value: "@@SAMPLES_PER_EPOCH_VAL@@"}
+            - {name: EPOCHS,                value: "@@EPOCHS@@"}
+            - {name: EXTRA_ARGS,            value: "@@EXTRA_ARGS@@"}
+            # Only read by the predict role; harmless elsewhere.
+            - {name: RUN_DIR,               value: "@@RUN_DIR@@"}
+            - {name: TEST_DATA,             value: "@@TEST_DATA@@"}
+            - {name: SKIP_PREFLIGHT,        value: "@@SKIP_PREFLIGHT@@"}
+            - {name: PYTHONPATH,            value: "/code"}
+            - {name: PYTHONUNBUFFERED,      value: "1"}
+            - {name: DATA_PATH,             value: "/data"}
+            - {name: OUTPUT_PATH,           value: "/output"}
+            - {name: DDP_NGPUS,             value: "1"}
+            # Mirror train_JetClass.sh's own workaround for multi-GPU sync here;
+            # harmless on one GPU.
+            - {name: NCCL_P2P_DISABLE,      value: "1"}
+            - {name: NCCL_IB_DISABLE,       value: "1"}
+          volumeMounts:
+            - {name: data-volume,   mountPath: "/data", readOnly: true}
+            - {name: output-volume, mountPath: "/output"}
+          resources:
+            limits:   {nvidia.com/gpu: "1", memory: "80Gi", cpu: "8"}
+            requests: {nvidia.com/gpu: "1", memory: "80Gi", cpu: "8"}
+      volumes:
+        # j-jepa-vol holds JetClass and is owned elsewhere: READ ONLY, always.
+        - name: data-volume
+          persistentVolumeClaim: {claimName: j-jepa-vol}
+        - name: output-volume
+          persistentVolumeClaim: {claimName: vl-eept-vol}

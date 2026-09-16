@@ -1,0 +1,21 @@
+# The output PVC: checkpoints, logs, tensorboard, pred.root.
+#
+# A copy of ../../pvc/vl-eept.yaml. It is ALREADY BOUND (500Gi, rook-cephfs,
+# verified) - this file is here for reference and disaster recovery, not to be
+# applied against the running claim.
+#
+# The data PVC is deliberately NOT declared here: j-jepa-vol (40000Gi,
+# rook-cephfs-central) holds JetClass, is owned by someone else, and is mounted
+# readOnly: true everywhere in this directory. Never write to it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vl-eept-vol
+  namespace: cms-ml
+spec:
+  storageClassName: rook-cephfs
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 500Gi

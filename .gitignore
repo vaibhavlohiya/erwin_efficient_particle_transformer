@@ -138,3 +138,8 @@ dmypy.json
 # next to them are committed - those are what tests/make_plots.py reads.
 tests/s10_results/*.pt
 tests/s10_results/*.out
+
+# weaver's SummaryWriter writes ./runs/<time>_<host><comment> relative to the
+# CWD. Cluster/scripts/run_train.sh symlinks this onto the output PVC via
+# LOG_DIR; locally it is just scratch.
+runs
