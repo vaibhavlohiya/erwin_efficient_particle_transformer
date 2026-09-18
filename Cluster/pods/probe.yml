@@ -14,7 +14,9 @@
 #     if this pod schedules and both mounts appear, that question is settled
 #   * how much room is left on the 500Gi output PVC
 #
-# It sleeps afterwards so it can also serve `kubectl cp` for stage_testdata.sh.
+# It then sleeps for an hour so it can serve `kubectl cp` for stage_testdata.sh -
+# long enough to stage 136 MB, short enough not to park a 4090 idle on a shared
+# cluster. Re-apply it if you need it back.
 apiVersion: v1
 kind: Pod
 metadata:
@@ -68,8 +70,8 @@ spec:
           df -h /data /output 2>&1
           echo "--- /output contents ---"; ls -la /output/ 2>&1 | head -20
           echo "=================== probe complete ==================="
-          echo "sleeping so this pod can serve kubectl cp; delete when done."
-          sleep 86400
+          echo "sleeping 1h so this pod can serve kubectl cp; delete when done."
+          sleep 3600
       volumeMounts:
         - {name: data-volume,   mountPath: "/data", readOnly: true}
         - {name: output-volume, mountPath: "/output"}

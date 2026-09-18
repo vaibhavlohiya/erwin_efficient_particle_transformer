@@ -33,17 +33,45 @@ export MODEL FEATURE RUN_ID
 mkdir -p "$RUN_DIR"
 export LOG_DIR="$RUN_DIR"          # train_JetClass.sh puts --log + tensorboard here
 
-# ---- provenance ------------------------------------------------------------
-python - "$RUN_DIR" <<'PY'
-import json, os, subprocess, sys, datetime
+# ---- provenance + resume guard ---------------------------------------------
+# The manifest is written PER ATTEMPT and never overwrites an earlier one, so a
+# resumed run keeps its original start time instead of losing it.
+#
+# The guard refuses a run directory created by a DIFFERENT model: the resume
+# path below would otherwise pass --load-epoch and load another architecture's
+# weights, which fails confusingly at best and trains silently wrong at worst.
+python - "$RUN_DIR" <<'PYPROV'
+import datetime, glob, json, os, re, subprocess, sys
+
 run_dir = sys.argv[1]
+model = os.environ.get("MODEL")
+
 def sh(*c):
-    try: return subprocess.check_output(c, text=True).strip()
-    except Exception: return None
+    try:
+        return subprocess.check_output(c, text=True).strip()
+    except Exception:
+        return None
+
+existing = sorted(glob.glob(os.path.join(run_dir, "run_manifest*.json")))
+if existing:
+    try:
+        prior = json.load(open(existing[0])).get("model")
+    except Exception:
+        prior = None
+    if prior and prior != model:
+        sys.exit(
+            "FATAL: %s was created by model %r, but MODEL=%r.\n"
+            "       Resuming would load %s's weights via --load-epoch.\n"
+            "       Use a different TAG (the run id embeds it), or a different RUN_ID."
+            % (run_dir, prior, model, prior))
+
+attempt = len(existing) + 1
 rec = {
     "run_id": os.environ.get("RUN_ID"),
+    "attempt": attempt,
     "started": datetime.datetime.now().isoformat(timespec="seconds"),
-    "model": os.environ.get("MODEL"), "feature": os.environ.get("FEATURE", "full"),
+    "model": model,
+    "feature": os.environ.get("FEATURE", "full"),
     "git_sha": sh("git", "rev-parse", "HEAD"),
     "git_branch": sh("git", "rev-parse", "--abbrev-ref", "HEAD"),
     "image": os.environ.get("IMAGE"),
@@ -51,16 +79,25 @@ rec = {
               ("DATA_FRACTION", "SAMPLES_PER_EPOCH", "SAMPLES_PER_EPOCH_VAL", "EPOCHS")},
     "extra_args": os.environ.get("EXTRA_ARGS", ""),
 }
-try:
-    import torch; rec["torch"] = torch.__version__; rec["cuda"] = torch.version.cuda
-except Exception: pass
-try:
-    import weaver; rec["weaver"] = getattr(weaver, "__version__", "?")
-except Exception: pass
-path = os.path.join(run_dir, "run_manifest.json")
-with open(path, "w") as fh: json.dump(rec, fh, indent=2)
-print("provenance ->", path)
-PY
+ckpts = glob.glob(os.path.join(run_dir, "net_epoch-*_state.pt"))
+if ckpts:
+    rec["resumed_from_epoch"] = max(
+        int(re.search(r"net_epoch-(\d+)_state", c).group(1)) for c in ckpts)
+for mod, keys in (("torch", ("__version__",)), ("weaver", ("__version__",))):
+    try:
+        m = __import__(mod)
+        rec[mod] = getattr(m, "__version__", "?")
+        if mod == "torch":
+            rec["cuda"] = m.version.cuda
+    except Exception:
+        pass
+
+name = "run_manifest.json" if attempt == 1 else "run_manifest.attempt%d.json" % attempt
+path = os.path.join(run_dir, name)
+with open(path, "w") as fh:
+    json.dump(rec, fh, indent=2)
+print("provenance -> %s (attempt %d)" % (path, attempt))
+PYPROV
 
 # ---- resume ----------------------------------------------------------------
 # weaver writes ${model_prefix}_epoch-N_state.pt each epoch. If the job was
