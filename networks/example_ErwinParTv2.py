@@ -19,6 +19,8 @@ What differs from the v1 `ErwinParT` config in this repo:
   * class attention reads all three levels at once (112 tokens < ParT's 128)
   * the whole batch is vectorised - no Python loop over jets, so this runs at
     ParT's batch size rather than v1's 16
+  * optional Lund-plane splitting tokens (`use_lund`, PLuM arXiv:2605.26821),
+    clustered in-model and verified against FastJet (tests/s12b)
 
 Geometry comes from `pf_points` = (part_deta, part_dphi), which JetClass ships
 already wrapped in phi and in its own eta sign convention. Do not substitute
@@ -48,7 +50,7 @@ class ErwinParTv2Wrapper(torch.nn.Module):
 
     @torch.jit.ignore
     def no_weight_decay(self):
-        return {'mod.cls_token', 'mod.level_embed'}
+        return {'mod.cls_token', 'mod.level_embed', 'mod.lund_token'}
 
     def forward(self, points, features, lorentz_vectors, mask):
         return self.mod(features, v=lorentz_vectors, mask=mask, points=points)
@@ -71,6 +73,13 @@ def get_model(data_config, **kwargs):
         num_cls_layers=2,
         pair_embed_dims=[64, 64],
         rotate=45.0,
+        # Lund splitting tokens (PLuM). Off by default so the baseline is
+        # unchanged; `./train_JetClass.sh ErwinParTv2Lund` turns them on.
+        use_lund=False,
+        lund_alg='kt',
+        lund_max=48,
+        lund_where='bottleneck',
+        lund_ktcut=None,
         block_params={'dropout': 0.1, 'attn_dropout': 0.1, 'activation_dropout': 0.1},
         cls_block_params={'dropout': 0, 'attn_dropout': 0, 'activation_dropout': 0},
         fc_params=[],

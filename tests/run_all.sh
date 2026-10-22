@@ -1,14 +1,16 @@
 #!/bin/bash
-# Full ErwinParTv2 verification suite (S0-S9).
+# Full ErwinParTv2 verification suite (S0-S9, S12).
 #
 # Two interpreters on purpose: S2 checks our pure-torch ball tree against Erwin's
 # compiled `balltree`, which is installed alongside torch in the system python,
 # while everything else needs weaver-core from the conda env. Override either
-# with WEAVER_PY / ORACLE_PY.
+# with WEAVER_PY / ORACLE_PY. S12b checks the Lund clustering against FastJet and
+# needs an interpreter with `fastjet` (LUND_ORACLE_PY); without it, it skips.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 WEAVER_PY=${WEAVER_PY:-/opt/homebrew/Caskroom/miniconda/base/envs/weaver/bin/python}
 ORACLE_PY=${ORACLE_PY:-python3}
+LUND_ORACLE_PY=${LUND_ORACLE_PY:-$ORACLE_PY}
 QUICK=${QUICK:-0}
 
 tot=0; fail=0
@@ -31,6 +33,8 @@ run s6_leakage       "$WEAVER_PY" tests/s6_leakage.py
 run s7_gradients     "$WEAVER_PY" tests/s7_gradients.py
 run s8_complexity    "$WEAVER_PY" tests/s8_complexity.py --max-l $([ "$QUICK" = 1 ] && echo 128 || echo 512)
 run s9_overfit       "$WEAVER_PY" tests/s9_overfit.py $([ "$QUICK" = 1 ] && echo "--jets 256 --epochs 40")
+run s12_lund         "$WEAVER_PY" tests/s12_lund.py
+run s12b_lund_fj     "$LUND_ORACLE_PY" tests/s12b_lund_fastjet.py
 echo "  ------------------------------------------------------------"
 printf "  %-20s %-5s %3d checks\n" "TOTAL" "$([ $fail -eq 0 ] && echo PASS || echo FAIL)" "$tot"
 [ $fail -eq 0 ] || echo "  $fail script(s) failed"

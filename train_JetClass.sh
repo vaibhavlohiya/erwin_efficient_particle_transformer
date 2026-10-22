@@ -43,6 +43,11 @@ elif [[ "$model" == "ErwinParTv2" ]]; then
     # this runs at ParT's own batch size rather than 16.
     modelopts="networks/example_ErwinParTv2.py --use-amp"
     batchopts="--batch-size 512 --start-lr 1e-3"
+elif [[ "$model" == "ErwinParTv2Lund" ]]; then
+    # ErwinParTv2 + PLuM-style Lund splitting tokens in the bottleneck ball.
+    # Same network file; the switch is a get_model() override.
+    modelopts="networks/example_ErwinParTv2.py --use-amp -o use_lund True"
+    batchopts="--batch-size 512 --start-lr 1e-3"
 elif [[ "$model" == "ReformerParT" ]]; then
     modelopts="networks/example_ReformerParticleTransformer.py --use-amp"
     batchopts="--batch-size 512 --start-lr 1e-3"

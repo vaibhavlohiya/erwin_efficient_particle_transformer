@@ -42,7 +42,13 @@ plugin = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(plugin)
 
 use_amp = torch.cuda.is_available()
-model, _ = plugin.get_model(dc, **({"use_amp": True} if use_amp else {}))
+opts = {"use_amp": True} if use_amp else {}
+# train_JetClass.sh maps ErwinParTv2Lund to this same file plus `-o use_lund
+# True`; mirror that here, or the Lund path would go unchecked. The 3-particle
+# jet below leaves 46 of 48 Lund slots empty, which is the case worth testing.
+if os.environ.get("MODEL") == "ErwinParTv2Lund":
+    opts["use_lund"] = True
+model, _ = plugin.get_model(dc, **opts)
 n_par = sum(p.numel() for p in model.parameters())
 print(f"plugin OK    {NETWORK} -> {n_par / 1e6:.2f}M params, {len(dc.label_value)} classes")
 

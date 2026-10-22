@@ -29,11 +29,21 @@ whole jet at once.
 **Widths are constant.** Every level runs at `embed_dim`, so ParT's block
 hyperparameters transfer unchanged and the class-attention blocks can read all
 levels without projection.
+
+**Lund tokens (optional, `use_lund`).** Following PLuM (arXiv:2605.26821), every
+splitting of a kT reclustering of the L slots becomes a token of
+[ln kT, ln z, ln deltaR] (lund.py). With `lund_where='bottleneck'` the tokens
+join the single top-level ball, so they attend to the subjets and the subjets
+to them - PLuM found its gain comes from exactly that interaction - and then
+reach the readout alongside every level. With `'readout'` they go to the class
+attention only, which is the cheap ablation. As in PLuM, no pair or distance
+bias touches a Lund token; it is zero-padded into the bottleneck bias.
 """
 from __future__ import annotations
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from weaver.nn.model.ParticleTransformer import Block, Embed, SequenceTrimmer, trunc_normal_
 
@@ -41,6 +51,7 @@ from .ball_attention import BallBlock, assemble_bias, ball_distance_bias
 from .balltree_torch import build_levels
 from .geometry import relative_positions, sort_truncate_pad, take_slots
 from .hierarchy import BallPooling
+from .lund import LundEmbed, lund_splittings
 from .pair_features import PairFeatureEmbed
 
 
@@ -71,6 +82,12 @@ class ErwinParticleTransformerV2(nn.Module):
         trim: bool = True,
         for_inference: bool = False,
         use_amp: bool = False,
+        use_lund: bool = False,
+        lund_alg: str = "kt",
+        lund_max: int = 48,
+        lund_where: str = "bottleneck",
+        lund_ktcut: float | None = None,
+        lund_embed_dims: list[int] = [64, 256],
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -93,6 +110,20 @@ class ErwinParticleTransformerV2(nn.Module):
         self.for_inference = for_inference
         self.use_amp = use_amp
         self.num_heads = num_heads
+        self.use_lund = use_lund
+        self.lund_alg = lund_alg
+        self.lund_max = lund_max
+        self.lund_ktcut = lund_ktcut
+        if lund_where not in ("bottleneck", "readout"):
+            raise ValueError("lund_where must be bottleneck|readout")
+        self.lund_where = lund_where
+        if use_lund and lund_where == "bottleneck":
+            top = seq_len
+            for s in strides:
+                top //= s
+            if top != ball_sizes[-1]:
+                raise ValueError("lund_where='bottleneck' needs the top level to be "
+                                 f"one ball: {top} nodes vs ball size {ball_sizes[-1]}")
 
         self.trimmer = SequenceTrimmer(enabled=trim and not for_inference)
         self.embed = Embed(input_dim, embed_dims, activation=activation) \
@@ -128,6 +159,16 @@ class ErwinParticleTransformerV2(nn.Module):
         trunc_normal_(self.cls_token, std=0.02)
         trunc_normal_(self.level_embed, std=0.02)
 
+        # Lund tokens: PLuM's 3 -> 64 -> 256 -> C MLP, plus a learned type
+        # embedding so attention can tell a splitting from a subjet.
+        if use_lund:
+            self.lund_embed = LundEmbed(list(lund_embed_dims) + [dim], lund_alg,
+                                        activation=activation)
+            self.lund_token = nn.Parameter(torch.zeros(1, 1, dim))
+            trunc_normal_(self.lund_token, std=0.02)
+        else:
+            self.lund_embed = self.lund_token = None
+
         if fc_params is not None and num_classes is not None:
             fcs, in_dim = [], dim
             for out_dim, drop in fc_params:
@@ -141,7 +182,7 @@ class ErwinParticleTransformerV2(nn.Module):
 
     @torch.jit.ignore
     def no_weight_decay(self):
-        return {"cls_token", "level_embed"}
+        return {"cls_token", "level_embed", "lund_token"}
 
     # ---------------------------------------------------------------- helpers --
     @staticmethod
@@ -167,6 +208,17 @@ class ErwinParticleTransformerV2(nn.Module):
                             device=p4.device, dtype=p4.dtype)
         dist = (ball_distance_bias(pb, vb) if self.use_dist_bias
                 else torch.zeros(N, nb, 1, bs, bs, device=p4.device, dtype=p4.dtype))
+        return pb, vb, u, dist
+
+    @staticmethod
+    def _with_lund(ctx, lpos, lvalid):
+        """Append S Lund tokens to a single-ball level context, unbiased."""
+        pb, vb, u, dist = ctx
+        N, S = lvalid.shape
+        pb = torch.cat([pb, lpos.view(N, 1, S, -1).to(pb.dtype)], dim=2)
+        vb = torch.cat([vb, lvalid.view(N, 1, S)], dim=2)
+        u = F.pad(u, (0, S, 0, S))
+        dist = F.pad(dist, (0, S, 0, S))
         return pb, vb, u, dist
 
     def _tree_coords(self, pos):
@@ -208,6 +260,22 @@ class ErwinParticleTransformerV2(nn.Module):
         return [{k: (t.to(dev, non_blocking=True) if torch.is_tensor(t) else t)
                  for k, t in lv.items()} for lv in levels]
 
+    def _lund(self, posL, p4L, vL):
+        """Splitting tokens for every jet, on CPU when the tree is built there.
+
+        Clustered in float64 wherever the device supports it: d_ij has near-ties
+        that float32 resolves differently on ~1% of jets (tests/s12b). MPS has
+        no float64, and its path runs on CPU anyway for the reason given in
+        `_build_tree`.
+        """
+        dev = p4L.device
+        run = torch.device("cpu") if dev.type == "mps" else dev
+        feats, pos, valid = lund_splittings(
+            p4L.to(run).double(), vL.to(run), posL.to(run).double(),
+            alg=self.lund_alg, max_splits=self.lund_max, ktcut=self.lund_ktcut)
+        return (feats.to(dev, torch.float32), pos.to(dev, torch.float32),
+                valid.to(dev))
+
     # ---------------------------------------------------------------- forward --
     def forward(self, x, v=None, mask=None, points=None, uu=None, uu_idx=None):
         """x (N, C, P); v (N, 4, P) [px,py,pz,E]; mask (N, 1, P); points (N, 2, P)."""
@@ -244,8 +312,14 @@ class ErwinParticleTransformerV2(nn.Module):
                 posL = take_slots(pos, idx) * vL.unsqueeze(-1)
                 p4L = take_slots(p4, idx) * vL.unsqueeze(-1)
                 levels = self._build_tree(posL, vL)
+                if self.use_lund:
+                    lfeat, lpos, lvalid = self._lund(posL, p4L, vL)
 
             h = take_slots(h, idx) * vL.unsqueeze(-1).to(h.dtype)
+            if self.use_lund:
+                hl = (self.lund_embed(lfeat) + self.lund_token).to(h.dtype)
+                hl = hl * lvalid.unsqueeze(-1).to(h.dtype)
+                to_ball = self.lund_where == "bottleneck"
 
             tokens, masks = [], []
             cur_pos, cur_p4, cur_valid = posL, p4L, vL
@@ -259,20 +333,34 @@ class ErwinParticleTransformerV2(nn.Module):
 
                 # Built once per (level, ordering) and reused by every block here.
                 ctx = {False: self._level_context(li, cur_pos, cur_p4, cur_valid, None)}
-                if lv["rot_rel"] is not None:
+                rot_ok = lv["rot_rel"] is not None
+                lund_here = (self.use_lund and to_ball
+                             and li == len(self.levels) - 1)
+                if lund_here:
+                    # The top level is one ball, so rotating it is a no-op; the
+                    # Lund tokens join that ball with zero pair and distance
+                    # bias, as PLuM leaves its splitting tokens unbiased.
+                    rot_ok = False
+                    ctx[False] = self._with_lund(ctx[False], lpos, lvalid)
+                    n_nodes = h.shape[1]
+                    h = torch.cat([h, hl], dim=1)
+                    bs = h.shape[1]
+                elif rot_ok:
                     ctx[True] = self._level_context(li, cur_pos, cur_p4, cur_valid,
                                                     lv["rot_rel"])
 
                 N, L, C = h.shape
                 nb = L // bs
                 for bi, blk in enumerate(blocks):
-                    rot = bool(bi % 2) and lv["rot_rel"] is not None
+                    rot = bool(bi % 2) and rot_ok
                     pb, vb, u, dist = ctx[rot]
                     hh = self._gather(h, lv["rot_rel"]) if rot else h
                     bias = assemble_bias(u, vb, dist, blk.attn.sigma)
                     hh = blk(hh.view(N, nb, bs, C), pb, vb, bias).view(N, L, C)
                     h = self._gather(hh, lv["rot_rel_inv"]) if rot else hh
 
+                if lund_here:
+                    h, hl = h[:, :n_nodes], h[:, n_nodes:]
                 tokens.append(h + self.level_embed[li])
                 masks.append(cur_valid)
 
@@ -285,6 +373,9 @@ class ErwinParticleTransformerV2(nn.Module):
                 tokens, masks = tokens[:1], masks[:1]     # constituents only
             elif self.readout == "coarse":
                 tokens, masks = tokens[-1:], masks[-1:]   # bottleneck only
+            if self.use_lund:
+                tokens.append(hl)
+                masks.append(lvalid)
             seq = torch.cat(tokens, dim=1).permute(1, 0, 2)       # (S, N, C)
             padding_mask = ~torch.cat(masks, dim=1)               # (N, S)
             cls = self.cls_token.expand(1, seq.shape[1], -1)
