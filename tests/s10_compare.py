@@ -176,7 +176,10 @@ def train_one(name, data, splits, args, device):
                   seq_len=args.seq_len,
                   use_pair_bias=not args.no_pair_bias,
                   use_dist_bias=not args.no_dist_bias,
-                  readout=args.readout, tree_space=args.tree_space)
+                  readout=args.readout, tree_space=args.tree_space,
+                  use_lund=args.lund != "off",
+                  lund_where="readout" if args.lund == "readout" else "bottleneck",
+                  lund_alg=args.lund_alg, lund_ktcut=args.lund_ktcut)
     nparam = sum(p.numel() for p in model.parameters())
     log(logp, f"=== {name} | {nparam/1e6:.2f}M params | L {args.seq_len} | "
               f"ball {args.ball_size} | rotate {args.rotate} | device {device} | "
@@ -237,7 +240,9 @@ def train_one(name, data, splits, args, device):
     tm["seq_len"] = args.seq_len
     tm["config"] = {"pair_bias": not args.no_pair_bias,
                     "dist_bias": not args.no_dist_bias,
-                    "readout": args.readout, "tree_space": args.tree_space}
+                    "readout": args.readout, "tree_space": args.tree_space,
+                    "lund": args.lund, "lund_alg": args.lund_alg,
+                    "lund_ktcut": args.lund_ktcut}
     tm["roc"] = roc_curves(model, name, data, te, torch.device("cpu"), args.eval_batch)
     model = model.to(device)
     tm["params"] = nparam
@@ -278,6 +283,11 @@ def main():
     ap.add_argument("--no-dist-bias", action="store_true", help="drop Erwin Eq. 10")
     ap.add_argument("--readout", default="multi", choices=["multi", "fine", "coarse"])
     ap.add_argument("--tree-space", default="etaphi", choices=["etaphi", "logpolar"])
+    ap.add_argument("--lund", default="off", choices=["off", "bottleneck", "readout"],
+                    help="Lund splitting tokens (PLuM) and where they enter")
+    ap.add_argument("--lund-alg", default="kt", choices=["kt", "ca"])
+    ap.add_argument("--lund-ktcut", type=float, default=None,
+                    help="keep only splittings with ln(kT/GeV) above this")
     ap.add_argument("--jets", type=int, default=0, help="0 = whole file")
     ap.add_argument("--device", default="auto")
     args = ap.parse_args()

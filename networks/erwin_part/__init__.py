@@ -2,18 +2,20 @@
 
 Import layering is deliberate and load-bearing:
 
-  geometry, balltree_torch   depend only on torch
+  geometry, balltree_torch, lund   depend only on torch
   pair_features, ball_attention, hierarchy, model   also need weaver-core
 
-The tree and the geometry stay weaver-free so they can be verified against
-Erwin's compiled `balltree` package, which lives in a different interpreter from
-weaver-core (see tests/s2_tree_parity.py). Importing this package must therefore
+The tree, the geometry and the Lund clustering stay weaver-free so they can be
+verified against Erwin's compiled `balltree` and against FastJet, which live in
+different interpreters from weaver-core (tests/s2_tree_parity.py,
+tests/s12b_lund_fastjet.py). Importing this package must therefore
 NOT drag weaver in eagerly - the weaver-backed names are resolved on first
 access via PEP 562 instead.
 """
 from .balltree_torch import ball_view, build_ball_tree, build_levels, rotate_positions
 from .geometry import (delta_r, masked_centroid, relative_positions,
                        sort_truncate_pad, take_slots, wrap_phi)
+from .lund import LundEmbed, lund_splittings
 
 _LAZY = {
     "BallBlock": "ball_attention", "BallMSA": "ball_attention",
@@ -24,7 +26,8 @@ _LAZY = {
 }
 
 __all__ = sorted(_LAZY) + [
-    "ball_view", "build_ball_tree", "build_levels", "delta_r", "masked_centroid",
+    "LundEmbed", "ball_view", "build_ball_tree", "build_levels", "delta_r",
+    "lund_splittings", "masked_centroid",
     "relative_positions", "rotate_positions", "sort_truncate_pad", "take_slots",
     "wrap_phi",
 ]
