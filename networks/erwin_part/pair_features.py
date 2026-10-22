@@ -34,6 +34,8 @@ pre-trained ParT pair MLP gets reused for fine-tuning.
 """
 from __future__ import annotations
 
+import warnings
+
 import torch
 import torch.nn as nn
 
@@ -47,6 +49,23 @@ PAIR_FEATURE_NORM = (
     ((-2.449, -1.347, -4.428, +1.424), (6.311, 0.683, 5.563, 1.909)),   # level 1
     ((-0.263, -1.378, -3.005, +4.342), (5.703, 0.709, 4.862, 1.788)),   # level 2
 )
+
+# The same statistics keyed by what they actually depend on: (pool, m), where
+# `pool` is how many constituents a node at that level sums over and `m` is the
+# ball size. The default geometry's rows are the three above, unchanged; the
+# rest serve layouts that keep full resolution and grow the ball instead
+# (strides of 1). All measured with tests/calibrate_pair_norm.py (4000 jets,
+# L=64), which reproduces the level-indexed table above to every digit.
+PAIR_FEATURE_NORM_BY_GEOMETRY = {
+    (1, 2):  ((-10.179, -1.071, -10.872, -5.598), (8.325, 0.620, 7.639, 6.780)),
+    (1, 4):  ((-5.840, -1.292, -6.863, -3.367), (7.393, 0.720, 6.812, 5.462)),
+    (1, 8):  PAIR_FEATURE_NORM[0],
+    (1, 16): ((-2.154, -1.527, -3.384, -0.950), (4.473, 0.798, 4.161, 3.554)),
+    (1, 32): ((-1.186, -1.592, -2.437, +0.108), (3.500, 0.821, 3.247, 3.158)),
+    (1, 64): ((-0.750, -1.595, -1.971, +0.582), (2.915, 0.810, 2.707, 2.830)),
+    (2, 8):  PAIR_FEATURE_NORM[1],
+    (4, 16): PAIR_FEATURE_NORM[2],
+}
 
 
 def within_ball_pair_features(p4_balls: torch.Tensor,
@@ -76,6 +95,9 @@ class PairFeatureEmbed(nn.Module):
                      output is one bias channel per attention head.
         pair_dim:    number of pair features (4 = ln kt, ln z, ln dR, ln m^2).
         level:       which row of PAIR_FEATURE_NORM to standardise with.
+        geometry:    (pool, m) - look the standardisation up in
+                     PAIR_FEATURE_NORM_BY_GEOMETRY instead. An unmeasured
+                     geometry falls back to `level`, with a warning.
         input_norm:  'fixed'  - frozen standardisation from PAIR_FEATURE_NORM
                                 (default; see module docstring)
                      'batch'  - a live BatchNorm1d, exactly as ParT does it.
@@ -91,7 +113,8 @@ class PairFeatureEmbed(nn.Module):
     def __init__(self, dims: list[int], pair_dim: int = 4, level: int = 0,
                  input_norm: str = "fixed",
                  use_pre_activation_pair: bool = True,
-                 activation: str = "gelu"):
+                 activation: str = "gelu",
+                 geometry: tuple[int, int] | None = None):
         super().__init__()
         if input_norm not in ("fixed", "batch", "none"):
             raise ValueError(f"input_norm must be fixed|batch|none, got {input_norm}")
@@ -112,7 +135,15 @@ class PairFeatureEmbed(nn.Module):
         self.embed = nn.Sequential(*layers)
 
         if input_norm == "fixed":
-            mean, std = PAIR_FEATURE_NORM[min(level, len(PAIR_FEATURE_NORM) - 1)]
+            if geometry is not None and tuple(geometry) in PAIR_FEATURE_NORM_BY_GEOMETRY:
+                mean, std = PAIR_FEATURE_NORM_BY_GEOMETRY[tuple(geometry)]
+            else:
+                if geometry is not None:
+                    warnings.warn(
+                        f"no pair-feature standardisation measured for (pool, m) = "
+                        f"{tuple(geometry)}; using level {level}'s. Measure it with "
+                        "tests/calibrate_pair_norm.py.")
+                mean, std = PAIR_FEATURE_NORM[min(level, len(PAIR_FEATURE_NORM) - 1)]
             bn: nn.BatchNorm1d = self.embed[0]
             with torch.no_grad():
                 bn.running_mean.copy_(torch.tensor(mean[:pair_dim]))

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Full ErwinParTv2 verification suite (S0-S9, S12).
+# Full ErwinParTv2 verification suite (S0-S9, S12, S13).
 #
 # Two interpreters on purpose: S2 checks our pure-torch ball tree against Erwin's
 # compiled `balltree`, which is installed alongside torch in the system python,
@@ -34,6 +34,7 @@ run s7_gradients     "$WEAVER_PY" tests/s7_gradients.py
 run s8_complexity    "$WEAVER_PY" tests/s8_complexity.py --max-l $([ "$QUICK" = 1 ] && echo 128 || echo 512)
 run s9_overfit       "$WEAVER_PY" tests/s9_overfit.py $([ "$QUICK" = 1 ] && echo "--jets 256 --epochs 40")
 run s12_lund         "$WEAVER_PY" tests/s12_lund.py
+run s13_grow         "$WEAVER_PY" tests/s13_grow.py
 run s12b_lund_fj     "$LUND_ORACLE_PY" tests/s12b_lund_fastjet.py
 echo "  ------------------------------------------------------------"
 printf "  %-20s %-5s %3d checks\n" "TOTAL" "$([ $fail -eq 0 ] && echo PASS || echo FAIL)" "$tot"

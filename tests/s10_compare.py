@@ -48,7 +48,7 @@ def log(path, msg):
         fh.write(line + "\n")
 
 
-def build(name, device, ball=8, rotate=45.0, seq_len=64, **opts):
+def build(name, device, ball=8, rotate=45.0, seq_len=64, layout=None, **opts):
     if name.startswith("erwin"):
         from erwin_part.model import ErwinParticleTransformerV2
         # `ball` is the level-0 (constituent) ball size. Level 1 stays at 8; the
@@ -57,10 +57,13 @@ def build(name, device, ball=8, rotate=45.0, seq_len=64, **opts):
         # makes level 0 a single ball too, i.e. full dense attention.
         if seq_len % 16 or (ball and seq_len % ball):
             raise ValueError(f"seq_len {seq_len} must be divisible by 16 and by ball {ball}")
+        # `layout` = (ball_sizes, strides, depths) overrides the default
+        # hierarchy entirely, e.g. the growing-ball arms of tests/s11_grow.sh.
+        geom = dict(zip(("ball_sizes", "strides", "depths"), layout)) if layout else dict(
+            ball_sizes=[ball, 8, seq_len // 4], strides=[2, 2], depths=[2, 2, 2])
         return ErwinParticleTransformerV2(
             input_dim=NUM_FEATURES, num_classes=10, seq_len=seq_len,
-            ball_sizes=[ball, 8, seq_len // 4], strides=[2, 2], depths=[2, 2, 2],
-            pair_embed_dims=[64, 64], rotate=rotate, **opts,
+            pair_embed_dims=[64, 64], rotate=rotate, **geom, **opts,
         ).to(device)
     from weaver.nn.model.ParticleTransformer import ParticleTransformer
     return ParticleTransformer(
@@ -172,8 +175,12 @@ def train_one(name, data, splits, args, device):
     pts, fts, vec, msk, y = data
 
     torch.manual_seed(args.seed); np.random.seed(args.seed); random.seed(args.seed)
+    layout = None
+    if args.ball_sizes:
+        ints = lambda s: [int(v) for v in s.split(",")] if s else []
+        layout = (ints(args.ball_sizes), ints(args.strides), ints(args.depths))
     model = build(name, device, ball=args.ball_size, rotate=args.rotate,
-                  seq_len=args.seq_len,
+                  seq_len=args.seq_len, layout=layout,
                   use_pair_bias=not args.no_pair_bias,
                   use_dist_bias=not args.no_dist_bias,
                   readout=args.readout, tree_space=args.tree_space,
@@ -241,6 +248,8 @@ def train_one(name, data, splits, args, device):
     tm["config"] = {"pair_bias": not args.no_pair_bias,
                     "dist_bias": not args.no_dist_bias,
                     "readout": args.readout, "tree_space": args.tree_space,
+                    "layout": {"ball_sizes": args.ball_sizes, "strides": args.strides,
+                               "depths": args.depths} if args.ball_sizes else None,
                     "lund": args.lund, "lund_alg": args.lund_alg,
                     "lund_ktcut": args.lund_ktcut}
     tm["roc"] = roc_curves(model, name, data, te, torch.device("cpu"), args.eval_batch)
@@ -288,6 +297,11 @@ def main():
     ap.add_argument("--lund-alg", default="kt", choices=["kt", "ca"])
     ap.add_argument("--lund-ktcut", type=float, default=None,
                     help="keep only splittings with ln(kT/GeV) above this")
+    ap.add_argument("--ball-sizes", default="",
+                    help="comma list, overrides --ball-size and the default "
+                         "hierarchy; needs --strides and --depths")
+    ap.add_argument("--strides", default="", help="comma list, 1 = no pooling")
+    ap.add_argument("--depths", default="", help="comma list, blocks per level")
     ap.add_argument("--jets", type=int, default=0, help="0 = whole file")
     ap.add_argument("--device", default="auto")
     args = ap.parse_args()

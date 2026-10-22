@@ -38,6 +38,13 @@ to them - PLuM found its gain comes from exactly that interaction - and then
 reach the readout alongside every level. With `'readout'` they go to the class
 attention only, which is the cheap ablation. As in PLuM, no pair or distance
 bias touches a Lund token; it is zero-padded into the bottleneck bias.
+
+**Growing balls (strides of 1).** A stride of 1 keeps every constituent and
+only enlarges the ball, so `ball_sizes=[8, 16, 32, 64], strides=[1, 1, 1]`
+widens the receptive field layer by layer up to full attention, with no
+subjets at all. It is the alternative to the hierarchy that the S11 `grow`
+arms measure; read it out with `readout='coarse'` (the last level), since
+every level holds the same particles.
 """
 from __future__ import annotations
 
@@ -140,13 +147,19 @@ class ErwinParticleTransformerV2(nn.Module):
         # share an input normalisation, and the biases they must produce differ.
         # Not instantiated when the bias is ablated away: dead parameters would
         # still be weight-decayed by AdamW and would misstate the model size.
+        pools = [1]
+        for s in strides:
+            pools.append(pools[-1] * s)
         self.pair_embeds = nn.ModuleList([
-            PairFeatureEmbed(list(pair_embed_dims) + [num_heads], level=i)
+            PairFeatureEmbed(list(pair_embed_dims) + [num_heads], level=i,
+                             geometry=(pools[i], ball_sizes[i]))
             for i in range(len(ball_sizes))]) if use_pair_bias else None
 
         self.levels = nn.ModuleList([
             nn.ModuleList([BallBlock(**bp) for _ in range(d)]) for d in depths])
-        self.pools = nn.ModuleList([BallPooling(dim, s) for s in strides])
+        # A stride of 1 grows the ball without coarsening: no subjets, no pool.
+        self.pools = nn.ModuleList([BallPooling(dim, s) if s > 1 else nn.Identity()
+                                    for s in strides])
 
         cbp = dict(embed_dim=dim, num_heads=num_heads, ffn_ratio=ffn_ratio,
                    dropout=0, attn_dropout=0, activation_dropout=0)
@@ -364,7 +377,7 @@ class ErwinParticleTransformerV2(nn.Module):
                 tokens.append(h + self.level_embed[li])
                 masks.append(cur_valid)
 
-                if li < len(self.pools):
+                if li < len(self.pools) and self.strides[li] > 1:
                     h, cur_pos, cur_p4, cur_valid = self.pools[li](
                         h, cur_pos, cur_p4, cur_valid)
 

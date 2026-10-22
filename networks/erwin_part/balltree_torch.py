@@ -119,6 +119,10 @@ def build_levels(pos: torch.Tensor, valid: torch.Tensor,
         valid       (N, L_l)            per-node validity
         n_balls     int
     Level l+1 has L_l // strides[l] nodes; a parent is valid iff any child is.
+
+    A stride of 1 keeps the nodes and only grows the ball. Every power-of-two
+    chunk of one tree is a ball of that tree, so the next level's canonical
+    order is the current one: its `perm` is the identity, not a rebuilt tree.
     """
     if len(strides) != len(ball_sizes) - 1:
         raise ValueError("len(strides) must be len(ball_sizes) - 1")
@@ -130,7 +134,11 @@ def build_levels(pos: torch.Tensor, valid: torch.Tensor,
             raise ValueError(
                 f"level {li}: ball_size {ball_size} does not divide L={L}")
 
-        perm = build_ball_tree(cur_pos, cur_valid, min_leaf=1)
+        if li and strides[li - 1] == 1:
+            N = cur_pos.shape[0]
+            perm = torch.arange(L, device=cur_pos.device).expand(N, L).contiguous()
+        else:
+            perm = build_ball_tree(cur_pos, cur_valid, min_leaf=1)
         perm_rot = (build_ball_tree(rotate_positions(cur_pos, rotate), cur_valid,
                                     min_leaf=1) if rotate % 360 else None)
 
