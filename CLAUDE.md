@@ -91,7 +91,7 @@ python tests/s10_compare.py --models erwin --ball-size 16 --tag _m16
 bash tests/s11_ballsweep.sh                           # level-0 ball size m ∈ {8,16,32,64}
 bash tests/s11_ablations.sh                           # rot0/noU/noD/fine/coarse/logpolar
 bash tests/s11_lund.sh                                # Lund tokens: bottleneck/readout/ca/kt-cut
-bash tests/s11_grow.sh                                # growing balls, no pooling: 8..64 and 2..64
+bash tests/s11_grow.sh                                # growing balls, no pooling: 8..32 and 2..32
 python tests/calibrate_pair_norm.py --ball-sizes 8,16,32,64 --strides 1,1,1   # pair-norm constants
 python tests/calibrate_lund_norm.py                   # re-measure LUND_FEATURE_NORM
 SEED=1 bash tests/s11_seedrepeat.sh                   # load-bearing arms at a second seed

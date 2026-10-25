@@ -36,3 +36,17 @@
 [18:29:39] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
 [18:49:47] loaded 100000 jets in 4.7s | device mps
 [18:49:47] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[11:33:18] loaded 100000 jets in 7.9s | device mps
+[11:33:18] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[12:28:43] loaded 100000 jets in 4.3s | device mps
+[12:28:43] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[13:16:14] loaded 100000 jets in 5.1s | device mps
+[13:16:14] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[15:12:15] loaded 100000 jets in 7.1s | device mps
+[15:12:15] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[15:22:28] loaded 100000 jets in 5.0s | device mps
+[15:22:28] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[16:06:50] loaded 100000 jets in 4.3s | device mps
+[16:06:50] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001
+[16:49:25] loaded 100000 jets in 4.3s | device mps
+[16:49:25] split 80000/10000/10000 | epochs 12 batch 256 lr 0.001

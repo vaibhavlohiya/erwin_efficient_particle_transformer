@@ -19,10 +19,10 @@ cd "$(dirname "$0")/.."
 PY=${WEAVER_PY:-/opt/homebrew/Caskroom/miniconda/base/envs/weaver/bin/python}
 E=${EPOCHS:-12}
 SEED=${SEED:-0}
-S=$([ "$SEED" = 0 ] && echo "" || echo "_s$SEED")
+S=$([ "$SEED" = 0 ] && echo "" || echo "_s${SEED}_")
 run () { echo "=== $1 ($(date +%H:%M)) ==="; local tag=$1; shift
          $PY tests/s10_compare.py --models erwin --epochs $E --batch 256 --lr 1e-3 \
-           --seed $SEED --tag "_${tag}$S" "$@" || echo "FAILED"; }
+           --seed $SEED --tag "${S:-_}${tag}" "$@" || echo "FAILED"; }
 run "lund"         --lund bottleneck
 run "lund_readout" --lund readout
 run "lund_ca"      --lund bottleneck --lund-alg ca
