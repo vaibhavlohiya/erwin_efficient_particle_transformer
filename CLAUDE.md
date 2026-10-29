@@ -97,6 +97,8 @@ python tests/calibrate_lund_norm.py                   # re-measure LUND_FEATURE_
 SEED=1 bash tests/s11_seedrepeat.sh                   # load-bearing arms at a second seed
 python tests/flops_compare.py                         # FlopCounterMode, matched-L and production
 python tests/make_plots.py                            # tests/s10_results/*.json -> plots/*.png
+python tests/bench_variants.py                        # FLOPs + latency of base/lund/grow8/grow2 -> variants_bench.json
+python tests/plot_variants.py                         # those four: cost, ROC, latency, accuracy -> plots/variants_*.png
 python tests/make_pdf.py && python tests/merge_pdf.py # -> results/*.pdf
 ```
 

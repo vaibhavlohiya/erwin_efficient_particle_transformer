@@ -1,0 +1,37 @@
+{
+ "device": "cpu",
+ "batch": 256,
+ "reps": 20,
+ "torch": "2.9.0",
+ "threads": 6,
+ "variants": {
+  "base": {
+   "flops_per_jet": 178905728.0,
+   "params": 2210846,
+   "latency_ms_per_batch": 1306.504687468987,
+   "latency_us_per_jet": 5103.53393542573,
+   "latency_iqr_ms": 29.591875296318904
+  },
+  "lund": {
+   "flops_per_jet": 241805952.0,
+   "params": 2261406,
+   "latency_ms_per_batch": 1324.4785415008664,
+   "latency_us_per_jet": 5173.744302737759,
+   "latency_iqr_ms": 67.09856275119819
+  },
+  "grow8": {
+   "flops_per_jet": 305755392.0,
+   "params": 2143262,
+   "latency_ms_per_batch": 4083.182228496298,
+   "latency_us_per_jet": 15949.930580063665,
+   "latency_iqr_ms": 165.22800020175055
+  },
+  "grow2": {
+   "flops_per_jet": 312637696.0,
+   "params": 2154078,
+   "latency_ms_per_batch": 4629.414458468091,
+   "latency_us_per_jet": 18083.65022839098,
+   "latency_iqr_ms": 452.09812503890134
+  }
+ }
+}

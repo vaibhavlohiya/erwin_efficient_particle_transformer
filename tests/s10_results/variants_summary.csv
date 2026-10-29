@@ -1,0 +1,5 @@
+model,label,seeds,accuracy,auc,d_auc_vs_base,mflops_per_jet,ms_per_jet
+base,ErwinParTv2,2,0.7673,0.9708,0.0,178.9,5.1
+lund,+ Lund tokens,2,0.7702,0.9715,0.0007,241.8,5.17
+grow8,Growing balls $8\rightarrow32$,2,0.7668,0.9697,-0.0011,305.8,15.95
+grow2,Growing balls $2\rightarrow32$,2,0.7641,0.9702,-0.0006,312.6,18.08
