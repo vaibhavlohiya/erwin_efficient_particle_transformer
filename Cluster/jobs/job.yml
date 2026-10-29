@@ -93,12 +93,16 @@ spec:
             - {name: NCCL_P2P_DISABLE,      value: "1"}
             - {name: NCCL_IB_DISABLE,       value: "1"}
           volumeMounts:
+            - {name: code,          mountPath: "/code"}
             - {name: data-volume,   mountPath: "/data", readOnly: true}
             - {name: output-volume, mountPath: "/output"}
           resources:
             limits:   {nvidia.com/gpu: "1", memory: "80Gi", cpu: "8"}
             requests: {nvidia.com/gpu: "1", memory: "80Gi", cpu: "8"}
       volumes:
+        # The image runs as jovyan (uid 1000), who cannot mkdir /code at the
+        # filesystem root; an emptyDir is created world-writable.
+        - {name: code, emptyDir: {}}
         # j-jepa-vol holds JetClass and is owned elsewhere: READ ONLY, always.
         - name: data-volume
           persistentVolumeClaim: {claimName: j-jepa-vol}
