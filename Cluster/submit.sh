@@ -41,7 +41,7 @@ TAG=${TAG:-dev}
 
 case "$ROLE" in
   smoke)   TAG=smoke; DATA_FRACTION=0.001; EPOCHS=1
-           SAMPLES_PER_EPOCH=51200; SAMPLES_PER_EPOCH_VAL=12800; DEADLINE=3600 ;;
+           SAMPLES_PER_EPOCH=51200; SAMPLES_PER_EPOCH_VAL=12800; DEADLINE=86400 ;;
   tests)   TAG=tests; SKIP_PREFLIGHT=1; DEADLINE=7200 ;;
   predict) : "${RUN_ID:?predict needs RUN_ID=<the training run id>}"
            RUN_DIR=${RUN_DIR:-/output/runs/${RUN_ID}}

@@ -89,7 +89,7 @@ train:   ; @$(MAKE) submit ROLE=train
 predict: ; @if [ -z "$(RUN_DIR)$(RUN_ID_IN)" ]; then echo "usage: make predict MODEL=... RUN_ID=<trained run id>"; exit 1; fi; \
 	    $(MAKE) submit ROLE=predict RUN_ID=$(RUN_ID)-pred RUN_DIR=$${RUN_DIR:-/output/runs/$(RUN_ID)} DEADLINE=43200
 smoke:   ; @$(MAKE) submit ROLE=smoke TAG=smoke DATA_FRACTION=0.001 EPOCHS=1 \
-	    SAMPLES_PER_EPOCH=51200 SAMPLES_PER_EPOCH_VAL=12800 DEADLINE=3600
+	    SAMPLES_PER_EPOCH=51200 SAMPLES_PER_EPOCH_VAL=12800 DEADLINE=86400
 tests:   ; @$(MAKE) submit ROLE=tests TAG=tests SKIP_PREFLIGHT=1 DEADLINE=7200
 
 logs:    ; kubectl -n $(NS) logs -f job/vleept-$(RUN_ID)
