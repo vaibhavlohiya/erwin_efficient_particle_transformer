@@ -97,8 +97,8 @@ spec:
             - {name: data-volume,   mountPath: "/data", readOnly: true}
             - {name: output-volume, mountPath: "/output"}
           resources:
-            limits:   {nvidia.com/gpu: "1", memory: "80Gi", cpu: "8"}
-            requests: {nvidia.com/gpu: "1", memory: "80Gi", cpu: "8"}
+            limits:   {nvidia.com/gpu: "1", memory: "@@MEM@@", cpu: "@@CPU@@"}
+            requests: {nvidia.com/gpu: "1", memory: "@@MEM@@", cpu: "@@CPU@@"}
       volumes:
         # The image runs as jovyan (uid 1000), who cannot mkdir /code at the
         # filesystem root; an emptyDir is created world-writable.

@@ -34,6 +34,8 @@ EXTRA_ARGS            ?=
 RUN_DIR               ?=
 TEST_DATA             ?= /output/testdata/JetClass_example_100k.root
 SKIP_PREFLIGHT        ?= 0
+MEM                   ?= 80Gi
+CPU                   ?= 8
 
 SHA  := $(shell git -C $(REPO_ROOT) rev-parse --short HEAD)
 DATE := $(shell date +%Y%m%d)
@@ -58,6 +60,8 @@ RENDER = sed \
   -e 's|@@RUN_DIR@@|$(RUN_DIR)|g' \
   -e 's|@@TEST_DATA@@|$(TEST_DATA)|g' \
   -e 's|@@SKIP_PREFLIGHT@@|$(SKIP_PREFLIGHT)|g' \
+  -e 's|@@MEM@@|$(MEM)|g' \
+  -e 's|@@CPU@@|$(CPU)|g' \
   jobs/job.yml
 
 .PHONY: check-pushed dry-run submit train predict smoke tests logs status describe probe image-digest clean-job help
@@ -89,7 +93,7 @@ train:   ; @$(MAKE) submit ROLE=train
 predict: ; @if [ -z "$(RUN_DIR)$(RUN_ID_IN)" ]; then echo "usage: make predict MODEL=... RUN_ID=<trained run id>"; exit 1; fi; \
 	    $(MAKE) submit ROLE=predict RUN_ID=$(RUN_ID)-pred RUN_DIR=$${RUN_DIR:-/output/runs/$(RUN_ID)} DEADLINE=43200
 smoke:   ; @$(MAKE) submit ROLE=smoke TAG=smoke DATA_FRACTION=0.001 EPOCHS=1 \
-	    SAMPLES_PER_EPOCH=51200 SAMPLES_PER_EPOCH_VAL=12800 DEADLINE=86400
+	    SAMPLES_PER_EPOCH=51200 SAMPLES_PER_EPOCH_VAL=12800 DEADLINE=86400 MEM=32Gi CPU=4
 tests:   ; @$(MAKE) submit ROLE=tests TAG=tests SKIP_PREFLIGHT=1 DEADLINE=7200
 
 logs:    ; kubectl -n $(NS) logs -f job/vleept-$(RUN_ID)

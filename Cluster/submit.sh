@@ -31,6 +31,8 @@ SAMPLES_PER_EPOCH=${SAMPLES_PER_EPOCH:-1024000}
 SAMPLES_PER_EPOCH_VAL=${SAMPLES_PER_EPOCH_VAL:-128000}
 EPOCHS=${EPOCHS:-50}
 DEADLINE=${DEADLINE:-172800}
+MEM=${MEM:-80Gi}
+CPU=${CPU:-8}
 EXTRA_ARGS=${EXTRA_ARGS:-}
 RUN_DIR=${RUN_DIR:-}
 TEST_DATA=${TEST_DATA:-/output/testdata/JetClass_example_100k.root}
@@ -41,7 +43,10 @@ TAG=${TAG:-dev}
 
 case "$ROLE" in
   smoke)   TAG=smoke; DATA_FRACTION=0.001; EPOCHS=1
-           SAMPLES_PER_EPOCH=51200; SAMPLES_PER_EPOCH_VAL=12800; DEADLINE=86400 ;;
+           SAMPLES_PER_EPOCH=51200; SAMPLES_PER_EPOCH_VAL=12800; DEADLINE=86400
+           # 0.1% of the data and 2 loader workers: a smaller request fits
+           # far more nodes, and queue time counts against DEADLINE.
+           MEM=${MEM_SMOKE:-32Gi}; CPU=${CPU_SMOKE:-4} ;;
   tests)   TAG=tests; SKIP_PREFLIGHT=1; DEADLINE=7200 ;;
   predict) : "${RUN_ID:?predict needs RUN_ID=<the training run id>}"
            RUN_DIR=${RUN_DIR:-/output/runs/${RUN_ID}}
@@ -76,11 +81,12 @@ render() {
       -e "s|@@SAMPLES_PER_EPOCH_VAL@@|${SAMPLES_PER_EPOCH_VAL}|g" -e "s|@@EPOCHS@@|${EPOCHS}|g" \
       -e "s|@@DEADLINE@@|${DEADLINE}|g" -e "s|@@EXTRA_ARGS@@|${EXTRA_ARGS}|g" \
       -e "s|@@RUN_DIR@@|${RUN_DIR}|g" -e "s|@@TEST_DATA@@|${TEST_DATA}|g" \
-      -e "s|@@SKIP_PREFLIGHT@@|${SKIP_PREFLIGHT}|g" "$HERE/jobs/job.yml"
+      -e "s|@@SKIP_PREFLIGHT@@|${SKIP_PREFLIGHT}|g" \
+      -e "s|@@MEM@@|${MEM}|g" -e "s|@@CPU@@|${CPU}|g" "$HERE/jobs/job.yml"
 }
 
 echo ">>> role=$ROLE model=$MODEL run-id=$RUN_ID scope: data-fraction=$DATA_FRACTION"
-echo "    samples/epoch=$SAMPLES_PER_EPOCH epochs=$EPOCHS${TRAINED:+  reading /output/runs/$TRAINED}"
+echo "    samples/epoch=$SAMPLES_PER_EPOCH epochs=$EPOCHS mem=$MEM cpu=$CPU${TRAINED:+  reading /output/runs/$TRAINED}"
 if [ "$DRY" = 1 ]; then
     render | kubectl -n "$NS" apply --dry-run=client -f - && echo "OK: manifest valid (nothing submitted)"
 else
