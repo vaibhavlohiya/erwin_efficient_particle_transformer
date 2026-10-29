@@ -1,5 +1,5 @@
 # Installed by the kube jobs with `pip install -r requirements.txt` against a
-# prebuilt HEP-ML image, so these are FLOORS, not exact pins.
+# prebuilt HEP-ML image, so these are mostly FLOORS, not exact pins.
 #
 # torch is deliberately absent: the image ships a CUDA-matched build, and a pin
 # here would let pip replace it with a wheel compiled for a different CUDA (or
@@ -9,7 +9,12 @@
 # weaver-core does not depend on torch (awkward, numpy, uproot, ... only), so
 # listing it cannot pull a second torch in.
 
+# weaver-core and numpy are the exceptions, pinned to what the test suite ran
+# against (weaver env: weaver-core 0.4.17, numpy 1.26). weaver-core 0.5 calls
+# torch._dynamo at import, which the image's torch 2.0 does not load, and a
+# floor let pip pull numpy 2.x under a torch compiled against numpy 1.x.
+
 einops
-weaver-core>=0.4
+weaver-core==0.4.17
 uproot>=5
-numpy>=1.24
+numpy>=1.24,<2
