@@ -93,6 +93,7 @@ spec:
             - {name: NCCL_IB_DISABLE,       value: "1"}
           volumeMounts:
             - {name: code,          mountPath: "/code"}
+            - {name: dshm,          mountPath: "/dev/shm"}
             - {name: data-volume,   mountPath: "/data", readOnly: true}
             - {name: output-volume, mountPath: "/output"}
           resources:
@@ -102,6 +103,10 @@ spec:
         # The image runs as jovyan (uid 1000), who cannot mkdir /code at the
         # filesystem root; an emptyDir is created world-writable.
         - {name: code, emptyDir: {}}
+        # DataLoader workers hand batches to the main process through /dev/shm,
+        # which a container gets only 64 MB of. With 6 workers a worker died of
+        # SIGBUS mid-validation (lund-10pct-a, epoch 29). Counts against MEM.
+        - {name: dshm, emptyDir: {medium: Memory, sizeLimit: 16Gi}}
         # j-jepa-vol holds JetClass and is owned elsewhere: READ ONLY, always.
         - name: data-volume
           persistentVolumeClaim: {claimName: j-jepa-vol}
