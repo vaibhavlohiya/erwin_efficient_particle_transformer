@@ -1,6 +1,6 @@
 # Submit ErwinParTv2 / ParT work to NRP Nautilus.
 #
-#   make smoke   MODEL=ErwinParTv2              # ~15 min, 0.1% of data
+#   make smoke   MODEL=ErwinParTv2              # ~30-40 min, 0.1% of data, resume test
 #   make tests                                  # S0-S9 on cluster hardware
 #   make train   MODEL=ErwinParTv2 TAG=v2-10pct # the real run, 10% scope
 #   make train   MODEL=ParT        TAG=part-10pct
@@ -94,8 +94,8 @@ submit: check-pushed
 train:   ; @$(MAKE) submit ROLE=train
 predict: ; @if [ -z "$(RUN_DIR)$(RUN_ID_IN)" ]; then echo "usage: make predict MODEL=... RUN_ID=<trained run id>"; exit 1; fi; \
 	    $(MAKE) submit ROLE=predict RUN_ID=$(RUN_ID)-pred RUN_DIR=$${RUN_DIR:-/output/runs/$(RUN_ID)} DEADLINE=43200
-smoke:   ; @$(MAKE) submit ROLE=smoke TAG=smoke DATA_FRACTION=0.001 EPOCHS=1 \
-	    SAMPLES_PER_EPOCH=51200 SAMPLES_PER_EPOCH_VAL=12800 DEADLINE=86400 MEM=32Gi CPU=4 \
+smoke:   ; @$(MAKE) submit ROLE=smoke TAG=smoke DATA_FRACTION=0.001 EPOCHS=2 \
+	    SAMPLES_PER_EPOCH=51200 SAMPLES_PER_EPOCH_VAL=12800 DEADLINE=86400 \
 	    GPUS="$(GPUS), NVIDIA-A10"
 tests:   ; @$(MAKE) submit ROLE=tests TAG=tests SKIP_PREFLIGHT=1 DEADLINE=7200
 

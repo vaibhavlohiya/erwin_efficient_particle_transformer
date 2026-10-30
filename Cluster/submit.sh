@@ -43,11 +43,11 @@ SHA=$(git rev-parse --short HEAD)
 TAG=${TAG:-dev}
 
 case "$ROLE" in
-  smoke)   TAG=smoke; DATA_FRACTION=0.001; EPOCHS=1
+  smoke)   TAG=smoke; DATA_FRACTION=0.001; EPOCHS=2
            SAMPLES_PER_EPOCH=51200; SAMPLES_PER_EPOCH_VAL=12800; DEADLINE=86400
-           # 0.1% of the data and 2 loader workers: a smaller request fits
-           # far more nodes, and queue time counts against DEADLINE.
-           MEM=${MEM_SMOKE:-32Gi}; CPU=${CPU_SMOKE:-4}
+           # Two epochs so run_train.sh can kill the run after epoch 0 and
+           # check that it resumes. Memory, CPUs and loader workers match
+           # training: smaller ones hid the /dev/shm crash 6 workers caused.
            # Smoke only proves the code runs, so it may also take an A10
            # (24 GB, slower; its timings do not transfer to training cards).
            GPUS="$GPUS, NVIDIA-A10" ;;

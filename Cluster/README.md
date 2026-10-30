@@ -25,7 +25,8 @@ kubectl -n cms-ml logs -f vleept-probe
 # 1. stage the test sample once (136 MB; .gitignore excludes *.root)
 bash Cluster/scripts/stage_testdata.sh vleept-probe
 
-# 2. smoke: preflight + forward/backward + one 0.1% epoch  (~15 min)
+# 2. smoke: preflight + forward/backward + two 0.1% epochs, killed after the
+#    first and resumed, on training-sized resources  (~30-40 min)
 ./Cluster/submit.sh smoke MODEL=ErwinParTv2
 
 # 3. the S0-S9 suite on cluster hardware

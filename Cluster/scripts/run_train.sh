@@ -30,9 +30,10 @@ export SAMPLES_PER_EPOCH_VAL=${SAMPLES_PER_EPOCH_VAL:-128000}
 export EPOCHS=${EPOCHS:-50}
 export MODEL FEATURE RUN_ID
 # train_JetClass.sh hard-codes 2 loader workers; on the cluster that left the
-# GPU idle waiting on reads. 6 fits the 8-CPU / 80Gi training request (~5 GB
-# RSS per worker); smoke keeps 2 to stay inside its 32Gi / 4-CPU request.
-NUM_WORKERS=${NUM_WORKERS:-$([ "${ROLE:-train}" = smoke ] && echo 2 || echo 6)}
+# GPU idle waiting on reads. 6 fits the 8-CPU / 80Gi request (~5 GB RSS per
+# worker). Smoke uses the same 6: a smoke run with 2 workers could not see the
+# /dev/shm exhaustion that 6 workers caused in training.
+NUM_WORKERS=${NUM_WORKERS:-6}
 
 mkdir -p "$RUN_DIR"
 export LOG_DIR="$RUN_DIR"          # train_JetClass.sh puts --log + tensorboard here
@@ -103,6 +104,41 @@ with open(path, "w") as fh:
 print("provenance -> %s (attempt %d)" % (path, attempt))
 PYPROV
 
+train_args=(--model-prefix "${RUN_DIR}/net"
+            --data-fraction "$DATA_FRACTION"
+            --samples-per-epoch "$SAMPLES_PER_EPOCH"
+            --samples-per-epoch-val "$SAMPLES_PER_EPOCH_VAL"
+            --num-epochs "$EPOCHS"
+            --num-workers "$NUM_WORKERS")
+
+# ---- smoke: prove a killed run resumes ---------------------------------------
+# Training pods get killed from outside (see backoffLimit in job.yml), and the
+# resume path below first ran for real on a 10% run. Smoke now exercises it:
+# train until epoch 0 is checkpointed, SIGKILL the whole process group (weaver
+# and its loader workers, as a pod kill would), then fall through to the normal
+# resume and require weaver to pick up at epoch 1.
+smoke_resume=0
+if [[ ${ROLE:-train} == smoke && ${SMOKE_RESUME_TEST:-1} == 1 ]] \
+   && ! ls "$RUN_DIR"/net_epoch-*_state.pt >/dev/null 2>&1; then
+    smoke_resume=1
+    echo ">>> smoke: training until epoch 0 is checkpointed, then killing it"
+    set -m                              # own process group, so one kill gets the workers too
+    ./train_JetClass.sh "$MODEL" "$FEATURE" "${train_args[@]}" ${EXTRA_ARGS:-} &
+    pid=$!
+    set +m
+    ck="$RUN_DIR/net_epoch-0_optimizer.pt"
+    prev=-1
+    while kill -0 "$pid" 2>/dev/null; do  # wait for the optimizer file to stop growing
+        size=$(stat -c %s "$ck" 2>/dev/null || stat -f %z "$ck" 2>/dev/null || echo -1)
+        [[ $size -gt 0 && $size == "$prev" ]] && break
+        prev=$size; sleep 5
+    done
+    [[ -s $ck ]] || { echo "SMOKE FAILED: the trainer exited before checkpointing epoch 0" >&2; exit 1; }
+    kill -KILL -- "-$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    echo ">>> smoke: killed after epoch 0; restarting to test resume"
+fi
+
 # ---- resume ----------------------------------------------------------------
 # weaver writes ${model_prefix}_epoch-N_state.pt each epoch. If the job was
 # preempted, pick up from the highest N rather than starting over.
@@ -116,13 +152,18 @@ else
     echo ">>> fresh run in ${RUN_DIR}"
 fi
 
+if (( smoke_resume )); then
+    out="$RUN_DIR/smoke_resume.out"
+    ./train_JetClass.sh "$MODEL" "$FEATURE" "${train_args[@]}" \
+        ${resume[@]+"${resume[@]}"} ${EXTRA_ARGS:-} 2>&1 | tee "$out"
+    if grep -q "Resume training from epoch 0" "$out" && grep -q "Epoch #1 training" "$out"; then
+        echo ">>> SMOKE RESUME OK: killed after epoch 0, resumed and trained epoch 1"
+        exit 0
+    fi
+    echo "SMOKE FAILED: the restarted run did not resume from epoch 0" >&2
+    exit 1
+fi
+
 set -x
-exec ./train_JetClass.sh "$MODEL" "$FEATURE" \
-    --model-prefix "${RUN_DIR}/net" \
-    --data-fraction "$DATA_FRACTION" \
-    --samples-per-epoch "$SAMPLES_PER_EPOCH" \
-    --samples-per-epoch-val "$SAMPLES_PER_EPOCH_VAL" \
-    --num-epochs "$EPOCHS" \
-    --num-workers "$NUM_WORKERS" \
-    ${resume[@]+"${resume[@]}"} \
-    ${EXTRA_ARGS:-}
+exec ./train_JetClass.sh "$MODEL" "$FEATURE" "${train_args[@]}" \
+    ${resume[@]+"${resume[@]}"} ${EXTRA_ARGS:-}
