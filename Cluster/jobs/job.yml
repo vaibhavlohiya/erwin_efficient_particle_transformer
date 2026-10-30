@@ -25,7 +25,10 @@ metadata:
     jobgroup: erwinpart-cluster
     run-id: "@@RUN_ID@@"
 spec:
-  backoffLimit: 0
+  # Pods get killed from outside (three 10% runs at 35e96f7 died mid-epoch with
+  # no error, then the job failed for good). run_train.sh resumes from the
+  # last net_epoch-N checkpoint, so a retry continues rather than restarts.
+  backoffLimit: 5
   ttlSecondsAfterFinished: 604800      # keep a week of finished jobs for inspection
   activeDeadlineSeconds: @@DEADLINE@@
   template:

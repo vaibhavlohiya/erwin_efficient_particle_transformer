@@ -29,6 +29,10 @@ export SAMPLES_PER_EPOCH=${SAMPLES_PER_EPOCH:-1024000}
 export SAMPLES_PER_EPOCH_VAL=${SAMPLES_PER_EPOCH_VAL:-128000}
 export EPOCHS=${EPOCHS:-50}
 export MODEL FEATURE RUN_ID
+# train_JetClass.sh hard-codes 2 loader workers; on the cluster that left the
+# GPU idle waiting on reads. 6 fits the 8-CPU / 80Gi training request (~5 GB
+# RSS per worker); smoke keeps 2 to stay inside its 32Gi / 4-CPU request.
+NUM_WORKERS=${NUM_WORKERS:-$([ "${ROLE:-train}" = smoke ] && echo 2 || echo 6)}
 
 mkdir -p "$RUN_DIR"
 export LOG_DIR="$RUN_DIR"          # train_JetClass.sh puts --log + tensorboard here
@@ -119,5 +123,6 @@ exec ./train_JetClass.sh "$MODEL" "$FEATURE" \
     --samples-per-epoch "$SAMPLES_PER_EPOCH" \
     --samples-per-epoch-val "$SAMPLES_PER_EPOCH_VAL" \
     --num-epochs "$EPOCHS" \
+    --num-workers "$NUM_WORKERS" \
     ${resume[@]+"${resume[@]}"} \
     ${EXTRA_ARGS:-}
