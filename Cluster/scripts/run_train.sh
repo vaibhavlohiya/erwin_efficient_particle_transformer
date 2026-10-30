@@ -119,7 +119,14 @@ train_args=(--model-prefix "${RUN_DIR}/net"
 # resume and require weaver to pick up at epoch 1.
 smoke_resume=0
 if [[ ${ROLE:-train} == smoke && ${SMOKE_RESUME_TEST:-1} == 1 ]] \
-   && ! ls "$RUN_DIR"/net_epoch-*_state.pt >/dev/null 2>&1; then
+   && ls "$RUN_DIR"/net_epoch-*_state.pt >/dev/null 2>&1; then
+    # A smoke pod that starts with checkpoints present is a retry (job.yml
+    # allows 5): resuming would skip the kill test and could pass on a run
+    # whose first attempt failed it.
+    echo "SMOKE FAILED: $RUN_DIR already has checkpoints - this is a retry; resubmit under a new RUN_ID" >&2
+    exit 1
+fi
+if [[ ${ROLE:-train} == smoke && ${SMOKE_RESUME_TEST:-1} == 1 ]]; then
     smoke_resume=1
     echo ">>> smoke: training until epoch 0 is checkpointed, then killing it"
     set -m                              # own process group, so one kill gets the workers too
