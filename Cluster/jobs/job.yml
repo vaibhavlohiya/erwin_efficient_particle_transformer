@@ -55,6 +55,11 @@ spec:
                     operator: NotIn
                     values:
                       - ry-gpu-10.sdsc.optiputer.net
+                      # The scheduler sees free GPUs here but the node has none to
+                      # hand out: pods die at admission (UnexpectedAdmissionError,
+                      # "Requested: 1, Available: 0") before any log, each one a
+                      # retry. It took all 6 retries of lund-b and ParT twice.
+                      - ry-gpu-08.sdsc.optiputer.net
       containers:
         - name: @@ROLE@@
           image: @@IMAGE@@
