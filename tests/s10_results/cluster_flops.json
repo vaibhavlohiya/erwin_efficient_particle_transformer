@@ -1,0 +1,41 @@
+{
+ "batch": 512,
+ "seq_padded_to": 128,
+ "multiplicity_mean": 39.341796875,
+ "multiplicity_max_in_batch": 104,
+ "models": {
+  "ParT": {
+   "network": "networks/example_ParticleTransformer.py",
+   "kwargs": {},
+   "params": 2143486,
+   "gflops_per_jet": 0.66951936,
+   "jets_seen": 20480000,
+   "train_pflops": 41.1352694784
+  },
+  "ErwinParTv2": {
+   "network": "networks/example_ErwinParTv2.py",
+   "kwargs": {},
+   "params": 2210846,
+   "gflops_per_jet": 0.19143104,
+   "jets_seen": 20480000,
+   "train_pflops": 11.7615230976
+  },
+  "ErwinParTv2+Lund": {
+   "network": "networks/example_ErwinParTv2.py",
+   "kwargs": {
+    "use_lund": true
+   },
+   "params": 2261406,
+   "gflops_per_jet": 0.254331264,
+   "lund_clustering_gflops_upper": 0.00262144,
+   "jets_seen": 20480000,
+   "train_pflops": 15.62611286016
+  },
+  "ErwinParT v1": {
+   "network": "networks/example_ErwinParticleTransformer.py",
+   "kwargs": {},
+   "params": 2652062,
+   "gflops_per_jet": 0.285871872
+  }
+ }
+}

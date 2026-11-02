@@ -99,6 +99,8 @@ python tests/flops_compare.py                         # FlopCounterMode, matched
 python tests/make_plots.py                            # tests/s10_results/*.json -> plots/*.png
 python tests/bench_variants.py                        # FLOPs + latency of base/lund/grow8/grow2 -> variants_bench.json
 python tests/plot_variants.py                         # those four: cost, ROC, latency, accuracy -> plots/variants_*.png
+python tests/flops_cluster_models.py                  # FLOPs of the weaver-built models -> cluster_flops.json
+python tests/plot_cluster_comparison.py               # cluster 10% runs vs ParT/v1 -> plots/new_comparison_plots/
 python tests/make_pdf.py && python tests/merge_pdf.py # -> results/*.pdf
 ```
 
