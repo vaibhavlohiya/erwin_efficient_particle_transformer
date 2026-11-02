@@ -101,6 +101,8 @@ python tests/bench_variants.py                        # FLOPs + latency of base/
 python tests/plot_variants.py                         # those four: cost, ROC, latency, accuracy -> plots/variants_*.png
 python tests/flops_cluster_models.py                  # FLOPs of the weaver-built models -> cluster_flops.json
 python tests/plot_cluster_comparison.py               # cluster 10% runs vs ParT/v1 -> plots/new_comparison_plots/
+python tests/fpga_efficiency.py                       # batch-1 FLOPs/memory/latency vs N -> fpga_efficiency.json
+python tests/plot_fpga_efficiency.py                  # -> plots/fpga_tradeoff/ (see ideas/visualization_ideas.md)
 python tests/make_pdf.py && python tests/merge_pdf.py # -> results/*.pdf
 ```
 
