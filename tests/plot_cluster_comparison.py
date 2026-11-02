@@ -255,7 +255,8 @@ def plot_flops(flops):
     ax.set_yticks(y, [MODELS[k][0] for _, k in order]); ax.tick_params(axis="y", length=0)
     ax.set_xlim(0, max(vals) * 1.9); ax.set_xlabel("forward GFLOPs per jet")
     grid(ax, "x")
-    titled(ax, "Inference cost", "FlopCounterMode, 512 real jets; Lund clustering adds < 0.003 GFLOPs")
+    titled(ax, "Inference cost (deployed)",
+           "trimming off, as weaver builds inference/ONNX models: 128 slots per jet; Lund clustering adds < 0.003")
     ax = axes[1]
     tr = [(n, k) for n, k in order if "train_pflops" in flops[n]]
     yt = np.arange(len(tr))[::-1]
@@ -266,7 +267,7 @@ def plot_flops(flops):
     ax.set_yticks(yt, [MODELS[k][0] for _, k in tr]); ax.tick_params(axis="y", length=0)
     ax.set_xlim(0, max(tv) * 1.4); ax.set_xlabel(r"training compute [PFLOPs = $10^{15}$]")
     grid(ax, "x")
-    titled(ax, "Training cost", r"3$\times$ forward $\times$ 20.5M jets (10%, 20 epochs); v1's run length unknown")
+    titled(ax, "Training cost", r"3$\times$ forward (padding trimmed per batch) $\times$ 20.5M jets; v1's run length unknown")
     fig.tight_layout()
     save(fig, "flops.png")
 

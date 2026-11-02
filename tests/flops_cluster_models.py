@@ -7,8 +7,15 @@ real jets (multiplicities from JetClass_example_100k.root, so ParT's
 SequenceTrimmer cuts padding the way it does in training). Feature VALUES do not
 change a FLOP count, only shapes and masks, so they are not standardised here.
 
-  gflops_per_jet      eval forward, FlopCounterMode, divided by the batch
-  train_pflops        3 x forward (forward + backward) x jets seen in training
+  gflops_per_jet          eval forward, FlopCounterMode, divided by the batch, with
+                          SequenceTrimmer OFF: every jet uses all 128 padded slots.
+                          This is the deployed cost - weaver builds inference/ONNX
+                          models with trimming disabled (enabled=trim and not
+                          for_inference) - and that of a fixed-size hardware pipeline.
+  gflops_per_jet_trimmed  trimming ON, after the 5 calls SequenceTrimmer leaves
+                          untrimmed: padding cut to the batch's longest jet, as in
+                          training
+  train_pflops            3 x trimmed forward (forward + backward) x jets seen
 
 FlopCounterMode counts matmul/conv/attention kernels, not elementwise ops, so
 the Lund clustering (distance updates, no matmuls) is estimated separately as
@@ -79,19 +86,32 @@ if __name__ == "__main__":
            "multiplicity_max_in_batch": int(mult.max()), "models": {}}
     for name, (path, kw, seen) in MODELS.items():
         model = build(path, kw, dc)
-        fc = FlopCounterMode(display=False)
-        with fc:
-            model(pts, fts.clone().requires_grad_(), vec, msk)
-        per_jet = fc.get_total_flops() / B
+        trimmer = getattr(model, "mod", model).trimmer
+        with torch.no_grad():
+            for _ in range(6):                   # past SequenceTrimmer's 5 untrimmed calls
+                model(pts[:2], fts[:2], vec[:2], msk[:2])
+
+        def count():
+            fc = FlopCounterMode(display=False)  # grad on (its hooks fail under no_grad)
+            with fc:
+                model(pts, fts, vec, msk)
+            return fc.get_total_flops() / B
+
+        per_jet_trim = count()
+        trimmer.enabled = False
+        per_jet_fixed = count()
+        trimmer.enabled = True
+        per_jet = per_jet_trim
         rec = {"network": path, "kwargs": kw, "params": sum(p.numel() for p in model.parameters()),
-               "gflops_per_jet": per_jet / 1e9}
+               "gflops_per_jet": per_jet_fixed / 1e9, "gflops_per_jet_trimmed": per_jet_trim / 1e9}
         if "use_lund" in kw:
             rec["lund_clustering_gflops_upper"] = LUND_ELEMENTWISE / 1e9
         if seen:
             rec["jets_seen"] = seen
             rec["train_pflops"] = 3 * per_jet * seen / 1e15
         out["models"][name] = rec
-        print(f"{name:<18} {rec['params'] / 1e6:5.2f}M params  {rec['gflops_per_jet']:.4f} GFLOPs/jet"
+        print(f"{name:<18} {rec['params'] / 1e6:5.2f}M params  fixed {rec['gflops_per_jet']:.4f}"
+              f"  trimmed {rec['gflops_per_jet_trimmed']:.4f} GFLOPs/jet"
               + (f"  {rec['train_pflops']:.1f} PFLOPs to train" if seen else ""), flush=True)
     path = os.path.join(HERE, "s10_results", "cluster_flops.json")
     json.dump(out, open(path, "w"), indent=1)

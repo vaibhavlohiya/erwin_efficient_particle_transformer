@@ -54,15 +54,27 @@ errors by about 3×.
 
 ## Cost
 
-Forward FLOPs per jet, counted with `torch.utils.flop_counter.FlopCounterMode` on
-512 real jets, with each model built by its weaver network config:
+Forward FLOPs per jet, counted with `torch.utils.flop_counter.FlopCounterMode`,
+with each model built by its weaver network config:
 
-| Model | Parameters | GFLOPs / jet | vs ParT | Particles kept | Test jets truncated |
-| --- | --- | --- | --- | --- | --- |
-| ParT | 2.14M | 0.670 | 1× | 128 | 0.001% |
-| ErwinParT (v1) | 2.65M | 0.286 | 2.3× less | 128 | 0.001% |
-| **ErwinParTv2** | 2.21M | **0.191** | **3.5× less** | 64 | 6.3% |
-| ErwinParTv2 + Lund | 2.26M | 0.254 | 2.6× less | 64 + Lund tokens | 6.3% |
+- **Deployed:** padding trimming off, so every jet uses all 128 input slots.
+  This is how weaver builds a model for inference or ONNX export
+  (`enabled=trim and not for_inference`), and how a fixed-size hardware pipeline
+  sized for the largest jet runs.
+- **Training:** weaver trims each batch's padding down to its longest jet. This
+  was measured on 512 real jets, the longest with 104 particles.
+
+| Model | Parameters | GFLOPs / jet, deployed | vs ParT | GFLOPs / jet, training batch | vs ParT | Particles kept | Test jets truncated |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| ParT | 2.14M | 0.670 | 1× | 0.512 | 1× | 128 | 0.001% |
+| ErwinParT (v1) | 2.65M | 0.286 | 2.3× less | 0.276 | 1.9× less | 128 | 0.001% |
+| **ErwinParTv2** | 2.21M | **0.191** | **3.5× less** | **0.185** | **2.8× less** | 64 | 6.3% |
+| ErwinParTv2 + Lund | 2.26M | 0.254 | 2.6× less | 0.248 | 2.1× less | 64 + Lund tokens | 6.3% |
+
+ErwinParTv2 always fills 64 fixed slots, so its cost barely depends on trimming.
+ParT's cost follows the longest jet it sees. With per-jet trimming at batch 1,
+ParT is the cheaper model for jets below about 40 particles; see
+`plots/fpga_tradeoff/scaling.png`.
 
 The Lund clustering's elementwise operations add under 0.003 GFLOPs per jet; the
 FLOP counter doesn't see them. At 64 particles, truncation falls hardest on
