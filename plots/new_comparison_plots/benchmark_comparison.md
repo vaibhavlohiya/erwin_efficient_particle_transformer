@@ -50,12 +50,18 @@ Background rejection of ErwinParTv2 (mean of 2 runs) divided by ParT's:
 Overall, ErwinParTv2 keeps **99.3% of ParT's accuracy** (0.8330 against 0.8392,
 −0.61 points) and **99.9% of its AUC** (−0.0010).
 
-The losses don't follow truncation. H→gg loses 24.9% of its jets to the
-64-particle cap but keeps 91% of ParT's rejection. H→ℓνqq′ and t→bℓν are barely
-truncated (0.4% and 1.0%) but lose the most; both contain a lepton. The H→4q
-loss (±6% counting error) is clearly real. The ℓν classes carry ±10–17% errors,
-so their exact size is less certain. The ball-size sweep (see [Pending](#pending)) tests
-whether ball locality is the cause.
+Error bars include both models' counting errors, from the QCD jets passing each
+cut (`plots/fpga_tradeoff/rejection_ratio.png`). Two losses are well measured:
+H→4q (0.80 ± 0.06) and H→gg (0.90 ± 0.03). W→qq′ and Z→qq̄ sit at 0.92 ± 0.05
+and 0.97 ± 0.04. The lepton classes hint at a larger loss (H→ℓνqq′ 0.77 ± 0.11,
+t→bℓν 0.77 ± 0.18), but only within about 2σ. H→bb̄, H→cc̄ and t→bqq′ can't
+be resolved with this test set (±0.11 to ±0.23).
+
+There's no clear link to truncation. H→gg, the most truncated class (24.9%),
+does lose about 10%, but H→4q (8.1%) loses twice as much, and barely truncated
+classes vary from 0.77 to 0.97. Telling ball locality apart from truncation
+needs the ball-size sweep (see [Pending](#pending)) and, for the classes with few
+QCD jets passing, the full 20M-jet test set.
 
 ## Precision of the rejection values
 

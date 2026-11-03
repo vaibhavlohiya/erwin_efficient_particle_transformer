@@ -104,6 +104,7 @@ python tests/plot_cluster_comparison.py               # cluster 10% runs vs ParT
 python tests/fpga_efficiency.py                       # batch-1 FLOPs/memory/latency vs N -> fpga_efficiency.json
 python tests/plot_fpga_efficiency.py                  # -> plots/fpga_tradeoff/ (see ideas/visualization_ideas.md)
 python tests/plot_fpga_frontier.py                    # accuracy-vs-FLOPs frontier + ParT scorecard -> plots/fpga_tradeoff/
+python tests/plot_fpga_relative.py                    # % of ParT accuracy vs % of cost; per-class rejection ratio
 python tests/make_pdf.py && python tests/merge_pdf.py # -> results/*.pdf
 ```
 
