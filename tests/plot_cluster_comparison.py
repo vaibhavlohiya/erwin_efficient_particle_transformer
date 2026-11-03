@@ -93,6 +93,12 @@ def load():
     return ev, runs, flops
 
 
+def run_label(tag):
+    """'v2-10pct-a' -> ' a'; a model with a single run ('part-10pct') gets none."""
+    last = tag.rsplit("-", 1)[-1]
+    return f" {last}" if len(last) == 1 else ""
+
+
 def mean_of(recs, f):
     return float(np.mean([f(r) for _, r in recs]))
 
@@ -108,7 +114,7 @@ def plot_roc(runs):
                 c = r["vs_qcd"][cls]
                 eff = np.array(c["eff"]); rej = np.array([np.nan if v is None else v for v in c["rej"]])
                 ax.plot(eff, rej, color=col, ls=RUN_STYLE[k], lw=1.5,
-                        label=f"{label} {tag[-1]}  AUC {c['auc']:.4f}")
+                        label=f"{label}{run_label(tag)}  AUC {c['auc']:.4f}")
                 n_bkg = c["n_bkg"]
         ax.axhline(n_bkg, color=MUTED, ls=":", lw=0.9)
         ax.text(0.03, n_bkg * 1.25, rf"$N_\mathrm{{QCD}}$ = {n_bkg:,}: no QCD jet passes above",
@@ -283,7 +289,7 @@ def plot_training_time(runs):
             tr = sum(e.get("train", 0) for e in ep.values())
             va = sum(e.get("val", 0) for e in ep.values())
             per = [e["train"] for e in ep.values() if "train" in e]
-            bars.append((f"{MODELS[key][0]} {tag[-1]}", MODELS[key][1], tr, va, per, len(ep)))
+            bars.append((f"{MODELS[key][0]}{run_label(tag)}", MODELS[key][1], tr, va, per, len(ep)))
     fig, axes = plt.subplots(1, 2, figsize=(10.5, 0.55 * len(bars) + 1.6), sharey=True,
                              gridspec_kw={"width_ratios": [1.2, 1]})
     y = np.arange(len(bars))[::-1]
@@ -419,7 +425,8 @@ def write_summary(runs, flops, rej, bars, trunc):
         if not recs:
             continue
         fl = flops[names[key]]
-        mins = [b[2] + b[3] for b in bars if b[0].startswith(MODELS[key][0] + " ")]
+        run_names = {MODELS[key][0] + run_label(t) for t, _ in recs}  # exact: "ErwinParTv2 a" is
+        mins = [b[2] + b[3] for b in bars if b[0] in run_names]       # not "ErwinParTv2 + Lund a"
         row = {"model": MODELS[key][0], "runs": len(recs),
                "accuracy": round(mean_of(recs, lambda r: r["accuracy"]), 4),
                "auc_macro": round(mean_of(recs, lambda r: r["auc_macro"]), 4),

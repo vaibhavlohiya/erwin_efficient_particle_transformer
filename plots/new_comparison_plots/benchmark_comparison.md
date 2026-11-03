@@ -17,14 +17,15 @@ $s_i / (s_i + s_\mathrm{QCD})$ and ParT's working points.
 | *New models: 10% of JetClass, 20 epochs, 2M test jets* | | | | | | | | | | | |
 | **ErwinParTv2** (mean of 2 runs) | 0.8330 | 0.9833 | 6667 | 1983 | 96 | 725 | 2186 | 9129 | 5885 | 335 | 258 |
 | **ErwinParTv2 + Lund** (1 run) | 0.8325 | 0.9832 | 7143 | 1835 | 96 | 697 | 1980 | 7407 | 5000 | 345 | 253 |
+| **ParT, same budget** (1 run) | **0.8392** | **0.9843** | 7143 | 2174 | 106 | 909 | 2857 | 11111 | 7692 | 362 | 266 |
 
 **The rows above the divider are not directly comparable with the new models.**
 The new models trained on 10% of JetClass (about 1M jets per epoch) for 20 epochs,
 and were tested on 2M test jets: 10% of the 20M-jet test set. The rows for ParT, ParticleNet,
 P-CNN, PFN and ParT (plain) are as published for full JetClass, and the ErwinParT
 (v1) row is as previously reported. Part of the gap to ParT comes from the smaller
-training budget, not the architecture. The same-budget ParT run is still in progress
-(see [Pending](#pending)).
+training budget, not the architecture. The **ParT, same budget** row is the
+like-for-like comparison: ParT trained exactly as the new models were.
 
 The new models' rejections are geometric means over runs; accuracy and AUC are
 arithmetic means.
@@ -36,6 +37,25 @@ arithmetic means.
 | ErwinParTv2, run a | RTX 4090 | 0.8328 | 0.9833 | 6667 | 1887 | 96 | 712 | 2151 | 8333 | 5714 | 341 | 258 |
 | ErwinParTv2, run b | L40 | 0.8333 | 0.9834 | 6667 | 2083 | 95 | 738 | 2222 | 10000 | 6061 | 328 | 258 |
 | ErwinParTv2 + Lund, run a | L40 | 0.8325 | 0.9832 | 7143 | 1835 | 96 | 697 | 1980 | 7407 | 5000 | 345 | 253 |
+| ParT, same budget | mixed (last part RTX 3090) | 0.8392 | 0.9843 | 7143 | 2174 | 106 | 909 | 2857 | 11111 | 7692 | 362 | 266 |
+
+## ErwinParTv2 relative to ParT (same budget)
+
+Background rejection of ErwinParTv2 (mean of 2 runs) divided by ParT's:
+
+| H→bb̄ | H→cc̄ | H→gg | H→4q | H→ℓνqq′ | t→bqq′ | t→bℓν | W→qq′ | Z→qq̄ |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 0.93 | 0.91 | 0.91 | **0.80** | **0.77** | 0.82 | **0.77** | 0.93 | 0.97 |
+
+Overall, ErwinParTv2 keeps **99.3% of ParT's accuracy** (0.8330 against 0.8392,
+−0.61 points) and **99.9% of its AUC** (−0.0010).
+
+The losses don't follow truncation. H→gg loses 24.9% of its jets to the
+64-particle cap but keeps 91% of ParT's rejection. H→ℓνqq′ and t→bℓν are barely
+truncated (0.4% and 1.0%) but lose the most; both contain a lepton. The H→4q
+loss (±6% counting error) is clearly real. The ℓν classes carry ±10–17% errors,
+so their exact size is less certain. The ball-size sweep (see [Pending](#pending)) tests
+whether ball locality is the cause.
 
 ## Precision of the rejection values
 
@@ -82,6 +102,13 @@ H→gg (24.9% of jets) and t→bqq′ (13.8%), against about 1% for W→qq′ an
 
 ## Takeaways
 
+- **Against ParT trained the same way, ErwinParTv2 gives up 0.6 points of
+  accuracy and 0.001 of AUC** for 3.5× fewer FLOPs and 7.7× less peak activation
+  memory when deployed (`plots/fpga_tradeoff/`).
+- Of the 2.8-point gap to published ParT (0.861), 2.2 points come from the
+  smaller training budget (ParT itself reaches 0.839 here) and 0.6 from the
+  architecture.
+
 - **ErwinParTv2 improves on ErwinParT v1** in accuracy (0.833 against 0.825)
   and AUC (0.9833 against 0.9819), at two-thirds of v1's cost per jet and 3.5×
   less than ParT. Its 20 epochs are likely fewer than v1's: v1's checkpoints
@@ -95,8 +122,6 @@ H→gg (24.9% of jets) and t→bqq′ (13.8%), against about 1% for W→qq′ an
 
 These runs are queued on the NRP Nautilus cluster with the same 10%, 20-epoch setup:
 
-- **ParT**: the same-budget reference. It will show how much of the gap to
-  published ParT comes from the architecture rather than the training budget.
 - **ErwinParTv2 + Lund, run b**: the second Lund run.
 - **ErwinParTv2 with first-level ball sizes 16, 32 and 64**: whether ball locality
   costs accuracy. Size 64 makes the first level dense.
