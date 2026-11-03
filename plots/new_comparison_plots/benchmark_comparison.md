@@ -36,7 +36,7 @@ arithmetic means.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | ErwinParTv2, run a | RTX 4090 | 0.8328 | 0.9833 | 6667 | 1887 | 96 | 712 | 2151 | 8333 | 5714 | 341 | 258 |
 | ErwinParTv2, run b | L40 | 0.8333 | 0.9834 | 6667 | 2083 | 95 | 738 | 2222 | 10000 | 6061 | 328 | 258 |
-| ErwinParTv2 + Lund, run a | L40 | 0.8325 | 0.9832 | 7143 | 1835 | 96 | 697 | 1980 | 7407 | 5000 | 345 | 253 |
+| ErwinParTv2 + Lund, run a | mixed (last part L40) | 0.8325 | 0.9832 | 7143 | 1835 | 96 | 697 | 1980 | 7407 | 5000 | 345 | 253 |
 | ParT, same budget | mixed (last part RTX 3090) | 0.8392 | 0.9843 | 7143 | 2174 | 106 | 909 | 2857 | 11111 | 7692 | 362 | 266 |
 
 ## ErwinParTv2 relative to ParT (same budget)
@@ -45,7 +45,7 @@ Background rejection of ErwinParTv2 (mean of 2 runs) divided by ParT's:
 
 | H→bb̄ | H→cc̄ | H→gg | H→4q | H→ℓνqq′ | t→bqq′ | t→bℓν | W→qq′ | Z→qq̄ |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0.93 | 0.91 | 0.91 | **0.80** | **0.77** | 0.82 | **0.77** | 0.93 | 0.97 |
+| 0.93 | 0.91 | **0.90** | **0.80** | 0.77 | 0.82 | 0.77 | 0.92 | 0.97 |
 
 Overall, ErwinParTv2 keeps **99.3% of ParT's accuracy** (0.8330 against 0.8392,
 −0.61 points) and **99.9% of its AUC** (−0.0010).

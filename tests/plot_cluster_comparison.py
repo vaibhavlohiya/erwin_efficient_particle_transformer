@@ -409,7 +409,8 @@ def plot_locality(runs):
     if v2 and part:
         d_acc = mean_of(part, lambda r: r["accuracy"]) - mean_of(v2, lambda r: r["accuracy"])
         d_auc = mean_of(part, lambda r: r["auc_macro"]) - mean_of(v2, lambda r: r["auc_macro"])
-        note = f"10% JetClass: ParT - ErwinParTv2 = {d_acc:+.4f} acc, {d_auc:+.4f} AUC"
+        note = (f"not a locality test on its own: on 10% JetClass, ParT - ErwinParTv2 = {d_acc:+.4f} acc,\n"
+                f"{d_auc:+.4f} AUC, which also includes the 64-particle cap and the hierarchy")
     else:
         note = "10% JetClass ParT vs ErwinParTv2: ParT run not finished yet"
     titled(axes[1], "", note)
