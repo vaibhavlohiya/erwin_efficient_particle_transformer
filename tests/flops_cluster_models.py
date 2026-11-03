@@ -49,6 +49,13 @@ MODELS = {
     "ErwinParTv2+Lund": ("networks/example_ErwinParTv2.py", {"use_lund": True}, SEEN_10PCT_20EP),
     "ErwinParT v1": ("networks/example_ErwinParticleTransformer.py", {}, None),
 }
+# Published JetClass baselines, counted the same way for the frontier plot only
+# (tests/plot_fpga_frontier.py); not part of the cluster comparison.
+REFERENCE_MODELS = {
+    "PFN":         ("networks/example_PFN.py", {}, None),
+    "P-CNN":       ("networks/example_PCNN.py", {}, None),
+    "ParticleNet": ("networks/example_ParticleNet.py", {}, None),
+}
 LUND_ELEMENTWISE = 64 * 64 * 64 * 10        # merges x pairs x ops, upper bound
 
 
@@ -84,9 +91,11 @@ if __name__ == "__main__":
     mult = msk.sum((1, 2)).float()
     out = {"batch": B, "seq_padded_to": P, "multiplicity_mean": float(mult.mean()),
            "multiplicity_max_in_batch": int(mult.max()), "models": {}}
-    for name, (path, kw, seen) in MODELS.items():
+    out["reference_models"] = {}
+    for name, (path, kw, seen) in {**MODELS, **REFERENCE_MODELS}.items():
         model = build(path, kw, dc)
-        trimmer = getattr(model, "mod", model).trimmer
+        # PFN/P-CNN/ParticleNet have no SequenceTrimmer: their cost is fixed.
+        trimmer = getattr(getattr(model, "mod", model), "trimmer", None) or type("NoTrim", (), {"enabled": True})()
         with torch.no_grad():
             for _ in range(6):                   # past SequenceTrimmer's 5 untrimmed calls
                 model(pts[:2], fts[:2], vec[:2], msk[:2])
@@ -109,7 +118,7 @@ if __name__ == "__main__":
         if seen:
             rec["jets_seen"] = seen
             rec["train_pflops"] = 3 * per_jet * seen / 1e15
-        out["models"][name] = rec
+        (out["models"] if name in MODELS else out["reference_models"])[name] = rec
         print(f"{name:<18} {rec['params'] / 1e6:5.2f}M params  fixed {rec['gflops_per_jet']:.4f}"
               f"  trimmed {rec['gflops_per_jet_trimmed']:.4f} GFLOPs/jet"
               + (f"  {rec['train_pflops']:.1f} PFLOPs to train" if seen else ""), flush=True)

@@ -41,5 +41,28 @@
    "gflops_per_jet": 0.285871872,
    "gflops_per_jet_trimmed": 0.276305664
   }
+ },
+ "reference_models": {
+  "PFN": {
+   "network": "networks/example_PFN.py",
+   "kwargs": {},
+   "params": 86154,
+   "gflops_per_jet": 0.009046528,
+   "gflops_per_jet_trimmed": 0.009046528
+  },
+  "P-CNN": {
+   "network": "networks/example_PCNN.py",
+   "kwargs": {},
+   "params": 354540,
+   "gflops_per_jet": 0.03044352,
+   "gflops_per_jet_trimmed": 0.03044352
+  },
+  "ParticleNet": {
+   "network": "networks/example_ParticleNet.py",
+   "kwargs": {},
+   "params": 370156,
+   "gflops_per_jet": 1.06635776,
+   "gflops_per_jet_trimmed": 1.06635776
+  }
  }
 }
