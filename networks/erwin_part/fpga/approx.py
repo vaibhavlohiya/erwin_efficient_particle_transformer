@@ -34,9 +34,21 @@ def _log2_table(bits: int) -> torch.Tensor:
     return torch.log2(m).to(torch.float32)
 
 
+def _frexp(x: torch.Tensor):
+    """x = m * 2^e with m in [0.5, 1), read from float32 bit fields (x > 0, normal).
+
+    This is what the hardware does - the exponent is a shift and a mask, the
+    mantissa the low 23 bits with the exponent forced to 2^-1 - and unlike
+    torch.frexp it runs on every backend (MPS has no frexp) and traces in fx."""
+    bits = x.float().contiguous().view(torch.int32)
+    e = ((bits >> 23) & 0xFF) - 126
+    m = ((bits & 0x007FFFFF) | (126 << 23)).view(torch.float32)
+    return m, e
+
+
 def lut_log(x: torch.Tensor, table: torch.Tensor, bits: int) -> torch.Tensor:
     """Natural log through the exponent and a mantissa table, x clamped to EPS."""
-    m, e = torch.frexp(x.clamp(min=EPS))                 # x = m * 2^e, m in [0.5, 1)
+    m, e = _frexp(x.clamp(min=EPS))                      # x = m * 2^e, m in [0.5, 1)
     pos = (m - 0.5) * (2 * 2 ** bits)                    # 0 .. 2^bits
     i = pos.floor().clamp(0, 2 ** bits - 1)
     frac = pos - i
