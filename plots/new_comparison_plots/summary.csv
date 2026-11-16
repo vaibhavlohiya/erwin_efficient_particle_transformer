@@ -1,4 +1,4 @@
 model,runs,accuracy,auc_macro,gflops_per_jet,train_pflops,train_minutes_mean,truncated_pct,rej_Hbb,rej_Hcc,rej_Hgg,rej_H4q,rej_Hqql,rej_Zqq,rej_Wqq,rej_Tbqq,rej_Tbl
 ErwinParTv2,2,0.833,0.9833,0.1914,11.4,69.0,6.34,6667,1983,96,725,2186,258,335,9129,5885
-ErwinParTv2 + Lund,1,0.8325,0.9832,0.2543,15.2,141.0,6.34,7143,1835,96,697,1980,253,345,7407,5000
+ErwinParTv2 + Lund,2,0.8331,0.9833,0.2543,15.2,129.0,6.34,6788,1852,96,692,2098,259,338,8026,5270
 ParT,1,0.8392,0.9843,0.6695,31.4,135.0,0.0,7143,2174,106,909,2857,266,362,11111,7692

@@ -40,6 +40,51 @@
    "params": 2652062,
    "gflops_per_jet": 0.285871872,
    "gflops_per_jet_trimmed": 0.276305664
+  },
+  "ErwinParTv2 m16": {
+   "network": "networks/example_ErwinParTv2.py",
+   "kwargs": {
+    "ball_sizes": [
+     16,
+     8,
+     16
+    ]
+   },
+   "params": 2210846,
+   "gflops_per_jet": 0.2019168,
+   "gflops_per_jet_trimmed": 0.195520896,
+   "jets_seen": 20480000,
+   "train_pflops": 12.01280385024
+  },
+  "ErwinParTv2 m32": {
+   "network": "networks/example_ErwinParTv2.py",
+   "kwargs": {
+    "ball_sizes": [
+     32,
+     8,
+     16
+    ]
+   },
+   "params": 2210846,
+   "gflops_per_jet": 0.22288832,
+   "gflops_per_jet_trimmed": 0.216492416,
+   "jets_seen": 20480000,
+   "train_pflops": 13.30129403904
+  },
+  "ErwinParTv2 m64": {
+   "network": "networks/example_ErwinParTv2.py",
+   "kwargs": {
+    "ball_sizes": [
+     64,
+     8,
+     16
+    ]
+   },
+   "params": 2210846,
+   "gflops_per_jet": 0.26483136,
+   "gflops_per_jet_trimmed": 0.258435456,
+   "jets_seen": 20480000,
+   "train_pflops": 15.87827441664
   }
  },
  "reference_models": {

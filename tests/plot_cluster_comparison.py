@@ -4,7 +4,7 @@ Reads, never trains or evaluates:
   tests/s10_results/cluster_eval.json   Cluster/scripts/eval_runs.py on the 2M-jet
                                         test predictions of each finished run
   tests/s10_results/cluster_flops.json  tests/flops_cluster_models.py
-  tests/s10_results/erwin_m*_result.json  the local ball-size sweep (locality)
+  cluster_eval.json also holds the 10% ball-size sweep (m = 16, 32, 64) for locality
   tests/s10_results/test_multiplicity.json  constituent counts (jet_nparticles,
                                         a weaver observer) of the same 2M test
                                         jets, read from the prediction files
@@ -379,43 +379,65 @@ def plot_truncation(n, cls, names):
 
 
 # --------------------------------------------------------------- 8. locality --
-def plot_locality(runs):
-    sweep = []
-    for m in (8, 16, 32, 64):
-        r = json.load(open(os.path.join(RES, f"erwin_m{m}_result.json")))
-        sweep.append((m, r["accuracy"], r["auc_macro"]))
-    s1 = json.load(open(os.path.join(RES, "erwin_s1_base_result.json")))
-    noise_acc = abs(sweep[0][1] - s1["accuracy"]); noise_auc = abs(sweep[0][2] - s1["auc_macro"])
-    fig, axes = plt.subplots(1, 2, figsize=(10.5, 3.8))
-    ms = [s[0] for s in sweep]
-    for ax, idx, yl, noise in ((axes[0], 1, "test accuracy", noise_acc), (axes[1], 2, "macro AUC", noise_auc)):
-        v = [s[idx] for s in sweep]
-        ax.fill_between(ms, v[0] - noise, v[0] + noise, color=GRID, alpha=0.8, lw=0,
-                        label="seed-to-seed spread at m = 8")
-        ax.plot(ms, v, "-o", color="#2a78d6", ms=6, label="ErwinParTv2, level-0 ball size m")
-        for m, vv in zip(ms, v):
-            ax.annotate(f"{vv:.4f}", (m, vv), xytext=(0, 7), textcoords="offset points", ha="center", fontsize=8)
+SWEEP = {16: "20261102-04fe81e-m16-10pct", 32: "20261102-04fe81e-m32-10pct", 64: "20261102-04fe81e-m64-10pct"}
+
+
+def plot_locality(ev, runs, flops):
+    """The 10% ball-size sweep: first-level ball m = 8 (ErwinParTv2's two runs), 16, 32,
+    64 (dense level 0), everything else fixed. ParT is the same-budget reference."""
+    pts = {8: [r for _, r in runs["v2"]]}
+    pts.update({m: [ev[t]] for m, t in SWEEP.items() if "accuracy" in ev.get(t, {})})
+    ms = sorted(pts)
+    part = runs["part"][0][1] if runs.get("part") else None
+    cost = {8: flops["ErwinParTv2"]["gflops_per_jet"]}
+    cost.update({m: flops[f"ErwinParTv2 m{m}"]["gflops_per_jet"] for m in ms if m != 8})
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4.2))
+    for ax, key, yl in ((axes[0], "accuracy", "test accuracy"), (axes[1], "auc_macro", "macro AUC")):
+        means = [np.mean([r[key] for r in pts[m]]) for m in ms]
+        for m in ms:
+            if len(pts[m]) > 1:
+                ax.scatter([m] * len(pts[m]), [r[key] for r in pts[m]], s=22, facecolors="white",
+                           edgecolors="#2a78d6", lw=1.2, zorder=3)
+        ax.plot(ms, means, "-o", color="#2a78d6", ms=7, mec="white", mew=1.3, zorder=4,
+                label="ErwinParTv2, first-level ball size m")
+        for m, v in zip(ms, means):
+            ax.annotate(f"{v:.4f}", (m, v), xytext=(0, -15), textcoords="offset points", ha="center", fontsize=8)
+        if part:
+            ax.axhline(part[key], color=MODELS["part"][1], ls="--", lw=1.4, label=f"ParT, same budget ({part[key]:.4f})")
         ax.set_xscale("log", base=2)
-        ax.set_xticks(ms, [f"{m}" + ("\n(dense level 0)" if m == 64 else "") for m in ms])
+        ax.set_xticks(ms, [f"{m}\n{cost[m]:.3f} GFLOPs" + ("\n(dense)" if m == 64 else "") for m in ms])
+        ax.minorticks_off()
         ax.set_xlim(6.5, 80)
-        lo, hi = min(v + [v[0] - noise]), max(v + [v[0] + noise])
-        ax.set_ylim(lo - (hi - lo) * 0.12, hi + (hi - lo) * 0.18)
-        ax.set_xlabel("particles per ball at level 0"); ax.set_ylabel(yl)
+        ax.set_ylabel(yl)
         grid(ax)
-    axes[0].legend(loc="lower left", fontsize=7.5)
+    axes[0].legend(loc="lower right", fontsize=7.5)
     titled(axes[0], "Is ball locality costing accuracy?",
-           "100k-jet local sweep, 12 epochs, one seed per m")
-    v2, part = runs.get("v2"), runs.get("part")
-    if v2 and part:
-        d_acc = mean_of(part, lambda r: r["accuracy"]) - mean_of(v2, lambda r: r["accuracy"])
-        d_auc = mean_of(part, lambda r: r["auc_macro"]) - mean_of(v2, lambda r: r["auc_macro"])
-        note = (f"not a locality test on its own: on 10% JetClass, ParT - ErwinParTv2 = {d_acc:+.4f} acc,\n"
-                f"{d_auc:+.4f} AUC, which also includes the 64-particle cap and the hierarchy")
-    else:
-        note = "10% JetClass ParT vs ErwinParTv2: ParT run not finished yet"
-    titled(axes[1], "", note)
+           "10% JetClass, 20 epochs, 2M test jets; m = 8: 2 runs (open), others 1 run")
+    titled(axes[1], "", "below each m: deployed cost (ParT: 0.670 GFLOPs)")
+    ax = axes[2]
+    if part:
+        for cls, c in (("H4q", "#2a78d6"), ("Hgg", "#eb6834"), ("Wqq", "#1baf7a")):
+            ys, es = [], []
+            for m in ms:
+                rej = float(np.exp(np.mean([np.log(r["vs_qcd"][cls]["rej_wp"]) for r in pts[m]])))
+                n = sum(r["vs_qcd"][cls]["n_bkg_pass_wp"] for r in pts[m])
+                n_p = part["vs_qcd"][cls]["n_bkg_pass_wp"]
+                r_ = rej / part["vs_qcd"][cls]["rej_wp"]
+                ys.append(r_); es.append(r_ * np.sqrt(1 / n + 1 / n_p))
+            ax.errorbar(ms, ys, yerr=es, fmt="-o", color=c, ms=6, mec="white", mew=1.1, capsize=2.5, lw=1.4,
+                        label=CLASS_TEX[cls])
+        ax.axhline(1, color=INK, lw=1)
+        ax.set_xscale("log", base=2); ax.set_xticks(ms, [str(m) for m in ms]); ax.minorticks_off()
+        ax.set_xlim(6.5, 80)
+        ax.set_xlabel("first-level ball size m")
+        ax.set_ylabel("background rejection / ParT's")
+        ax.legend(loc="lower right", fontsize=8)
+        grid(ax)
+        titled(ax, "The classes that lost most at m = 8",
+               "error bars: counting error of QCD jets passing")
+    fig.tight_layout()
     save(fig, "locality.png")
-    return sweep, noise_acc, noise_auc
+    return {m: (np.mean([r["accuracy"] for r in pts[m]]), np.mean([r["auc_macro"] for r in pts[m]])) for m in ms}
 
 
 # ---------------------------------------------------------------- summary --
@@ -459,7 +481,6 @@ if __name__ == "__main__":
     n, cls, names = jet_counts()
     plot_multiplicity(n, cls, names)
     trunc = plot_truncation(n, cls, names)
-    sweep, na, nu = plot_locality(runs)
-    print(f"  locality: m64 - m8 = {sweep[3][1] - sweep[0][1]:+.4f} acc, {sweep[3][2] - sweep[0][2]:+.4f} AUC;"
-          f" seed spread {na:.4f} acc, {nu:.4f} AUC")
+    sweep = plot_locality(ev, runs, flops)
+    print("  locality (acc, AUC by m):", {m: (round(a, 4), round(u, 4)) for m, (a, u) in sweep.items()})
     write_summary(runs, flops, rej, bars, trunc)

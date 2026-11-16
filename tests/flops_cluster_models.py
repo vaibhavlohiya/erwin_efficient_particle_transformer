@@ -48,6 +48,10 @@ MODELS = {
     "ErwinParTv2": ("networks/example_ErwinParTv2.py", {}, SEEN_10PCT_20EP),
     "ErwinParTv2+Lund": ("networks/example_ErwinParTv2.py", {"use_lund": True}, SEEN_10PCT_20EP),
     "ErwinParT v1": ("networks/example_ErwinParticleTransformer.py", {}, None),
+    # The 10% ball-size sweep (first-level ball m; m = 64 makes level 0 dense)
+    "ErwinParTv2 m16": ("networks/example_ErwinParTv2.py", {"ball_sizes": [16, 8, 16]}, SEEN_10PCT_20EP),
+    "ErwinParTv2 m32": ("networks/example_ErwinParTv2.py", {"ball_sizes": [32, 8, 16]}, SEEN_10PCT_20EP),
+    "ErwinParTv2 m64": ("networks/example_ErwinParTv2.py", {"ball_sizes": [64, 8, 16]}, SEEN_10PCT_20EP),
 }
 # Published JetClass baselines, counted the same way for the frontier plot only
 # (tests/plot_fpga_frontier.py); not part of the cluster comparison.

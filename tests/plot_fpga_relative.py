@@ -60,13 +60,17 @@ def save(fig, name):
     print("  wrote", os.path.relpath(path, os.path.join(HERE, "..")))
 
 
+SWEEP = {16: "20261102-04fe81e-m16-10pct", 32: "20261102-04fe81e-m32-10pct", 64: "20261102-04fe81e-m64-10pct"}
+
+
 def load():
     ev = json.load(open(os.path.join(RES, "cluster_eval.json")))
     runs = {k: [ev[PREFIX + t] for t in m[3] if "accuracy" in ev.get(PREFIX + t, {})] for k, m in MODELS.items()}
     part = ev[PREFIX + "part-10pct"]
     fl = json.load(open(os.path.join(RES, "cluster_flops.json")))["models"]
     fp = json.load(open(os.path.join(RES, "fpga_efficiency.json")))["models"]
-    return runs, part, fl, fp
+    sweep = {m: ev[t] for m, t in SWEEP.items() if "accuracy" in ev.get(t, {})}
+    return runs, part, fl, fp, sweep
 
 
 def costs(fl, fp, name):
@@ -78,7 +82,7 @@ def costs(fl, fp, name):
 
 
 # ------------------------------------------------------------- #2 relative --
-def plot_relative(runs, part, fl, fp):
+def plot_relative(runs, part, fl, fp, sweep):
     panels = [("flops", "forward FLOPs per jet"), ("memory", "peak activation memory per jet"),
               ("latency", "latency per jet (CPU, batch 1)"), ("params", "parameters")]
     ref = costs(fl, fp, "ParT")
@@ -99,14 +103,23 @@ def plot_relative(runs, part, fl, fp):
                        label=name if key == "flops" else None)
             ax.annotate(f"{x:.0f}%", (x, np.mean(ys)), xytext=(7, -12 if k == "lund" else 6),
                         textcoords="offset points", fontsize=8, color=INK)
+        for m, r in sorted(sweep.items()):                     # larger first-level balls, 1 run each
+            x = costs(fl, fp, f"ErwinParTv2 m{m}")[key] / ref[key] * 100
+            y = r["accuracy"] / part["accuracy"] * 100
+            ax.scatter([x], [y], s=50, marker="o", facecolors="#9cc3ef", edgecolors="#2a78d6", lw=1.1, zorder=4,
+                       label="ErwinParTv2, m = 16 / 32 / 64" if (key == "flops" and m == 16) else None)
+            if key != "params":                                 # same parameter count for every m
+                off = {16: (6, -10), 32: (-6, 6), 64: (6, 6)}[m]
+                ax.annotate(f"m = {m}", (x, y), xytext=off, textcoords="offset points", fontsize=7,
+                            color=MUTED, ha="right" if off[0] < 0 else "left")
         ax.set_xlim(0, 135)
         ax.set_xlabel(f"% of ParT's {label}")
         ax.grid(True, color=GRID, lw=0.6); ax.set_axisbelow(True)
         titled(ax, label[0].upper() + label[1:])
-    axes[0].set_ylim(97.0, 100.8)
+    axes[0].set_ylim(98.85, 100.3)
     axes[0].set_ylabel("% of ParT's test accuracy")
     axes[0].legend(loc="lower right", fontsize=7.5)
-    axes[0].text(2, TARGET_ACC + 0.12, f"example target:\n$\\geq${TARGET_ACC:g}% accuracy,\n"
+    axes[0].text(2, 98.9, f"example target:\n$\\geq${TARGET_ACC:g}% accuracy,\n"
                  f"$\\leq${TARGET_COST:g}% cost", fontsize=7.5, color="#1a7f37", va="bottom")
     fig.suptitle("Relative to ParT: same training budget (10% of JetClass, 20 epochs); costs when deployed "
                  "(all 128 slots); left of 100% = cheaper", x=0.01, ha="left", y=1.0, fontsize=10, color=MUTED)
@@ -180,8 +193,8 @@ def plot_rejection_ratio(runs, part):
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    runs, part, fl, fp = load()
-    plot_relative(runs, part, fl, fp)
+    runs, part, fl, fp, sweep = load()
+    plot_relative(runs, part, fl, fp, sweep)
     plot_rejection_ratio(runs, part)
     ref = costs(fl, fp, "ParT")
     for k, m in MODELS.items():

@@ -200,7 +200,7 @@ if __name__ == "__main__":
         for n in N_GRID:
             jet = synthetic_jet(n, C)
             f, peak, by = flops_and_memory(model, jet, comp)
-            old = reuse and next(x for x in reuse[name]["scaling"] if x["n"] == n)
+            old = reuse and name in reuse and next(x for x in reuse[name]["scaling"] if x["n"] == n)
             r = {"n": n, "flops": f, "peak_bytes": peak, "peak_by_component": by,
                  "latency_ms": old["latency_ms"] if old else latency_ms(model, jet, reps=15)}
             # Fixed-size variant: trimming off, so every jet uses all 128 padded slots, as
@@ -214,9 +214,9 @@ if __name__ == "__main__":
         warm = (pts[pick[0]:pick[0] + 1], fts[pick[0]:pick[0] + 1], vec[pick[0]:pick[0] + 1], msk[pick[0]:pick[0] + 1])
         for _ in range(3):
             latency_ms(model, warm, reps=1)
-        if reuse:
+        if reuse and name in reuse:
             rec["latency"] = reuse[name]["latency"]
-        for i in ([] if reuse else pick):
+        for i in ([] if reuse and name in reuse else pick):
             inp = (pts[i:i + 1], fts[i:i + 1], vec[i:i + 1], msk[i:i + 1])
             rec["latency"].append({"n": int(mult[i]), "ms": latency_ms(model, inp)})
         lat = sorted(r["ms"] for r in rec["latency"])
