@@ -35,6 +35,7 @@ run s8_complexity    "$WEAVER_PY" tests/s8_complexity.py --max-l $([ "$QUICK" = 
 run s9_overfit       "$WEAVER_PY" tests/s9_overfit.py $([ "$QUICK" = 1 ] && echo "--jets 256 --epochs 40")
 run s12_lund         "$WEAVER_PY" tests/s12_lund.py
 run s13_grow         "$WEAVER_PY" tests/s13_grow.py
+run s15_lite         "$WEAVER_PY" tests/s15_lite.py
 run s12b_lund_fj     "$LUND_ORACLE_PY" tests/s12b_lund_fastjet.py
 echo "  ------------------------------------------------------------"
 printf "  %-20s %-5s %3d checks\n" "TOTAL" "$([ $fail -eq 0 ] && echo PASS || echo FAIL)" "$tot"
