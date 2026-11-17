@@ -200,6 +200,21 @@ o2 = bn2(xr * vm.unsqueeze(-1) + 50 * torch.randn(4, 10, 8) * (~vm).unsqueeze(-1
 check("statistics ignore padded rows", torch.allclose(bn1.running_mean, bn2.running_mean) and
       torch.allclose(o1[vm], o2[vm], atol=1e-5))
 
+print("\n7b. self-pairs")
+m = ErwinParTLite(LiteConfig(input_dim=C)).train()
+pn = m.pair_nets[0]
+seen = []
+h = pn.in_norm.register_forward_hook(lambda mod, a, o: seen.append((a[0].detach(), a[1])))
+with torch.no_grad():
+    run(m, batch)
+h.remove()
+f0, st = seen[0]                                            # level-0 pair features, stats mask
+diag = torch.eye(8, dtype=torch.bool).expand_as(st)
+check("pair-norm statistics exclude a particle paired with itself",
+      not bool((st & diag).any()) and bool(st.any()),
+      f"ln dR of self-pairs {float(f0[..., 2][diag & (msk[:B, 0, :1] > 0).view(-1, 1, 1, 1)].max()):.1f}, "
+      f"of real pairs median {float(f0[..., 2][st].median()):.1f}")
+
 # ------------------------------------------------------------------- size --
 print("\n8. size")
 n_v2 = sum(p.numel() for p in ErwinParticleTransformerV2(input_dim=C, num_classes=10).parameters())

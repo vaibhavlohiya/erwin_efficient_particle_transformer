@@ -126,11 +126,15 @@ class PairNet(nn.Module):
         self.lins = nn.ModuleList(nn.Linear(a, b, bias=False) for a, b in zip(dims[:-1], dims[1:]))
         self.norms = nn.ModuleList(make_norm("batchnorm", b) for b in dims[1:])
 
-    def forward(self, f, valid):
-        h = self.in_norm(f, valid)
+    def forward(self, f, valid, stats=None):
+        """`stats` (default `valid`) selects the pairs the statistics come from and
+        that carry their features; the rest of `valid` (a particle with itself)
+        enters as a zero feature vector, so it gets one learned self-bias."""
+        stats = valid if stats is None else stats
+        h = self.in_norm(f, stats) * stats.unsqueeze(-1).to(f.dtype)
         last = len(self.lins) - 1
         for i, (lin, nrm) in enumerate(zip(self.lins, self.norms)):
-            h = nrm(lin(h), valid)
+            h = nrm(lin(h), stats)
             if i < last:                       # pre-activation output, as ParT
                 h = F.gelu(h)
         return h * valid.unsqueeze(-1).to(h.dtype)
@@ -312,8 +316,14 @@ class ErwinParTLite(nn.Module):
         if c.pair_features == "none":
             u = zl.expand(-1, -1, H, m, m)
         else:
+            # A particle paired with itself has dR = 0, so ln dR and ln kT sit at the
+            # log floor (-18 exact, -9 lut) against ~-3 for real pairs. In a tile of 8
+            # that is 1 pair in 8 (1 in 128 in ParT): left in, it dominates the pair
+            # norm's statistics and squashes every real pair together. So the
+            # statistics and the features come from distinct pairs only.
+            distinct = pair_valid & ~torch.eye(m, dtype=torch.bool, device=pb.device)
             f = self._pair_feats(pb.unsqueeze(3), pb.unsqueeze(2), qb.unsqueeze(3), qb.unsqueeze(2))
-            u = self.pair_nets[li](f, pair_valid).permute(0, 1, 4, 2, 3)                  # (N, nb, H, m, m)
+            u = self.pair_nets[li](f, pair_valid, distinct).permute(0, 1, 4, 2, 3)        # (N, nb, H, m, m)
         if c.use_dist_bias:
             dist = self._dist(pb.unsqueeze(3), pb.unsqueeze(2), radius2[..., None, None])
             dist = (dist * pair_valid).unsqueeze(2)                                       # (N, nb, 1, m, m)
