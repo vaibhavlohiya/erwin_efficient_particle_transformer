@@ -160,13 +160,14 @@ def main():
             run += loss.item() * len(b); seen += len(b)
         probs, yy = predict(model, lite_call, data, va, dev)
         vm = local_metrics(probs.numpy(), yy.numpy())
-        hist.append({"epoch": ep, "loss": run / seen, "val_acc": vm["accuracy"], "val_auc": vm["auc_macro"],
-                     "secs": time.perf_counter() - t0})
+        vloss = float(-torch.log(probs.gather(1, yy.view(-1, 1)).clamp(min=1e-12)).mean())   # plain CE
+        hist.append({"epoch": ep, "loss": run / seen, "val_loss": vloss, "val_acc": vm["accuracy"],
+                     "val_auc": vm["auc_macro"], "secs": time.perf_counter() - t0})
         star = ""
         if vm["accuracy"] > best:
             best, star = vm["accuracy"], "  *"
             best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
-        log(logp, f"epoch {ep:>3}/{args.epochs}  loss {run / seen:.4f}  val acc {vm['accuracy']:.4f}  "
+        log(logp, f"epoch {ep:>3}/{args.epochs}  loss {run / seen:.4f}  val loss {vloss:.4f}  val acc {vm['accuracy']:.4f}  "
                   f"val AUC {vm['auc_macro']:.4f}  {time.perf_counter() - t0:5.1f}s{star}")
 
     model.load_state_dict(best_state)

@@ -1,0 +1,15 @@
+[04:02:42] === lite_w128_f4 | 2,217,860 params | {'input_dim': 17, 'D': 128, 'num_heads': 0, 'ffn_ratio': 4, 'embed_ratio': 4, 'depths': (2, 2, 2), 'strides': (2, 2), 'hierarchy': True, 'cls_layers': 2, 'partition': 'morton', 'shift': True, 'ball_summary': 'physics', 'pair_features': 'lut', 'pair_hidden': (64, 64), 'norm': 'batchnorm'} | device mps | seed 0 ===
+[04:07:52] epoch   1/12  loss 1.8564  val acc 0.3740  val AUC 0.8956  309.0s  *
+[04:12:59] epoch   2/12  loss 0.9936  val acc 0.6666  val AUC 0.9483  306.5s  *
+[04:18:05] epoch   3/12  loss 0.8500  val acc 0.7138  val AUC 0.9583  306.3s  *
+[04:23:11] epoch   4/12  loss 0.7942  val acc 0.7348  val AUC 0.9625  306.2s  *
+[04:28:17] epoch   5/12  loss 0.7515  val acc 0.7387  val AUC 0.9639  306.1s  *
+[04:33:24] epoch   6/12  loss 0.7177  val acc 0.7420  val AUC 0.9656  306.3s  *
+[04:38:30] epoch   7/12  loss 0.6889  val acc 0.7565  val AUC 0.9676  306.8s  *
+[04:43:37] epoch   8/12  loss 0.6640  val acc 0.7602  val AUC 0.9689  306.3s  *
+[04:48:43] epoch   9/12  loss 0.6357  val acc 0.7664  val AUC 0.9699  306.5s  *
+[04:53:50] epoch  10/12  loss 0.6146  val acc 0.7691  val AUC 0.9705  306.8s  *
+[04:58:57] epoch  11/12  loss 0.5959  val acc 0.7693  val AUC 0.9704  306.7s  *
+[05:04:02] epoch  12/12  loss 0.5879  val acc 0.7678  val AUC 0.9701  305.9s
+[05:04:22] TEST acc 0.7730  AUC 0.9714  | 2,217,860 params, 93.2M MACs, 0.644 MB  (61.6 min)
+[05:04:22]   rej90: Hbb 170  Hcc 26  Hgg 7  H4q 19  Hqql 1017+  Zqq 10  Wqq 10  Tbqq 48  Tbl 1017+

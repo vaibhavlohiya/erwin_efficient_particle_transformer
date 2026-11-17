@@ -1,0 +1,16 @@
+[10:46:33] === lite_kd16_f4 | 38,242 params | {'input_dim': 17, 'D': 16, 'num_heads': 0, 'ffn_ratio': 4, 'embed_ratio': 4, 'depths': (2, 2, 2), 'strides': (2, 2), 'hierarchy': True, 'cls_layers': 2, 'partition': 'morton', 'shift': True, 'ball_summary': 'physics', 'pair_features': 'lut', 'pair_hidden': (8, 8), 'norm': 'batchnorm'} | device mps | seed 0 ===
+[10:46:33] distillation: teacher erwin_m64 (ball 64), alpha 0.5, T 4.0
+[10:48:28] epoch   1/12  loss 3.4745  val loss 1.3337  val acc 0.5105  val AUC 0.8899  114.5s  *
+[10:50:20] epoch   2/12  loss 1.5636  val loss 1.0285  val acc 0.6189  val AUC 0.9314  111.2s  *
+[10:52:11] epoch   3/12  loss 1.1635  val loss 0.9392  val acc 0.6515  val AUC 0.9428  110.9s  *
+[10:54:03] epoch   4/12  loss 1.0248  val loss 0.9008  val acc 0.6700  val AUC 0.9483  112.6s  *
+[10:55:56] epoch   5/12  loss 0.9215  val loss 0.8497  val acc 0.7005  val AUC 0.9552  112.7s  *
+[10:57:48] epoch   6/12  loss 0.8589  val loss 0.8198  val acc 0.7053  val AUC 0.9572  111.6s  *
+[10:59:41] epoch   7/12  loss 0.8072  val loss 0.7791  val acc 0.7240  val AUC 0.9602  113.3s  *
+[11:01:38] epoch   8/12  loss 0.7802  val loss 0.7911  val acc 0.7191  val AUC 0.9603  117.3s
+[11:03:38] epoch   9/12  loss 0.7539  val loss 0.7663  val acc 0.7338  val AUC 0.9618  119.9s  *
+[11:05:35] epoch  10/12  loss 0.7487  val loss 0.9144  val acc 0.6614  val AUC 0.9495  116.6s
+[11:07:29] epoch  11/12  loss 0.7354  val loss 0.7576  val acc 0.7334  val AUC 0.9627  114.4s
+[11:09:23] epoch  12/12  loss 0.7296  val loss 0.7584  val acc 0.7340  val AUC 0.9626  114.0s  *
+[11:09:32] TEST acc 0.7363  AUC 0.9627  | 38,242 params, 1.7M MACs, 0.114 MB  (23.0 min)
+[11:09:32]   rej90: Hbb 127  Hcc 16  Hgg 7  H4q 12  Hqql 1017+  Zqq 9  Wqq 9  Tbqq 39  Tbl 1017+

@@ -4,6 +4,9 @@
 #   bash tests/s16_sweep.sh variants   # stage 0: pick the variant to carry forward (D = 64)
 #   SEED=1 bash tests/s16_sweep.sh repeat   # the deciding stage-0 arms at another seed
 #   bash tests/s16_sweep.sh decide          # the same, after the self-pair fix, seeds 0 and 1
+#   bash tests/s16_sweep.sh width           # stage 1: D in {128, 64, 32, 16} x FFN {2, 4}
+#   bash tests/s16_sweep.sh depth           # stage 2: depth cuts
+#   bash tests/s16_sweep.sh kd              # step 4: distillation from ErwinParTv2
 #
 # variants/repeat (v64_*) predate the self-pair fix in PairNet; decide (d64_*) is after it.
 #
@@ -43,6 +46,31 @@ case "${1:?usage: s16_sweep.sh variants}" in
       run d64_phys_lut_s$SEED      $D64 --ball-summary physics --pair-features lut
       run d64_phys_lut_bn_s$SEED   $D64 --ball-summary physics --pair-features lut --norm batchnorm
     done
+    ;;
+  width)    # stage 1: width x FFN ratio for the carried-forward variant (physics summaries,
+            # lookup-table features, BatchNorm); pair net scaled with D. D = 64 / FFN 2 is decide's.
+    V="--ball-summary physics --pair-features lut --norm batchnorm"
+    run w128_f4   --D 128 --ffn-ratio 4 --pair-hidden 64,64 $V
+    run w64_f4    --D 64  --ffn-ratio 4 --pair-hidden 16,16 $V
+    run w32_f2    --D 32  --ffn-ratio 2 --pair-hidden 16,16 $V
+    run w32_f4    --D 32  --ffn-ratio 4 --pair-hidden 16,16 $V
+    run w16_f2    --D 16  --ffn-ratio 2 --pair-hidden 8,8   $V
+    run w16_f4    --D 16  --ffn-ratio 4 --pair-hidden 8,8   $V
+    ;;
+  depth)    # stage 2: fewer blocks per level / class-attention layers at D = 64 and 32
+    V="--ball-summary physics --pair-features lut --norm batchnorm"
+    run dp64_111       $D64 --depths 1,1,1 $V
+    run dp64_cls1      $D64 --cls-layers 1 $V
+    run dp32f4_111     --D 32 --ffn-ratio 4 --pair-hidden 16,16 --depths 1,1,1 $V
+    run dp32f4_cls1    --D 32 --ffn-ratio 4 --pair-hidden 16,16 --cls-layers 1 $V
+    ;;
+  kd)       # step 4: distillation from ErwinParTv2 (erwin_m64, seed-0 split) at alpha 0.5, T 4
+    V="--ball-summary physics --pair-features lut --norm batchnorm --teacher erwin_m64 --teacher-ball 64"
+    run kd64_f2        $D64 $V
+    run kd32_f4        --D 32 --ffn-ratio 4 --pair-hidden 16,16 $V
+    run kd32_f2        --D 32 --ffn-ratio 2 --pair-hidden 16,16 $V
+    run kd16_f4        --D 16 --ffn-ratio 4 --pair-hidden 8,8 $V
+    run kd32_f4_a9t2   --D 32 --ffn-ratio 4 --pair-hidden 16,16 $V --alpha 0.9 --temp 2
     ;;
   *) echo "unknown stage $1" >&2; exit 2 ;;
 esac
