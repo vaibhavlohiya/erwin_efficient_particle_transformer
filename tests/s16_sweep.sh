@@ -7,6 +7,7 @@
 #   bash tests/s16_sweep.sh width           # stage 1: D in {128, 64, 32, 16} x FFN {2, 4}
 #   bash tests/s16_sweep.sh depth           # stage 2: depth cuts
 #   bash tests/s16_sweep.sh kd              # step 4: distillation from ErwinParTv2
+#   bash tests/s16_sweep.sh qat             # step 5: 8 / 6 / 4 bits, attention floor off or 8
 #
 # variants/repeat (v64_*) predate the self-pair fix in PairNet; decide (d64_*) is after it.
 #
@@ -18,7 +19,7 @@ PY=${WEAVER_PY:-/opt/homebrew/Caskroom/miniconda/base/envs/weaver/bin/python}
 SEED=${SEED:-0}
 run () { local tag=$1; shift
          echo "=== $tag seed=$SEED ($(date +%H:%M)) ==="
-         $PY tests/s16_lite_train.py --tag "$tag" --seed "$SEED" "$@" 2>&1 | grep -E "TEST|rej90|===" \
+         $PY tests/s16_lite_train.py --tag "$tag" --seed "$SEED" "$@" 2>&1 | grep -E "TEST|rej90|===|QAT|post-training" \
            || echo "FAILED $tag"; }
 D64="--D 64 --ffn-ratio 2 --pair-hidden 16,16"
 
@@ -71,6 +72,18 @@ case "${1:?usage: s16_sweep.sh variants}" in
     run kd32_f2        --D 32 --ffn-ratio 2 --pair-hidden 16,16 $V
     run kd16_f4        --D 16 --ffn-ratio 4 --pair-hidden 8,8 $V
     run kd32_f4_a9t2   --D 32 --ffn-ratio 4 --pair-hidden 16,16 $V --alpha 0.9 --temp 2
+    ;;
+  qat)      # step 5: quantization-aware training from the two candidates' float checkpoints;
+            # 6 epochs at lr 3e-4, distance capped at 16 (changes neither float model by > 0.0001)
+    Q="--epochs 6 --lr 3e-4 --dist-cap 16"
+    for INIT in d64_phys_lut_bn_s0 dp32f4_111; do
+      S=${INIT%%_*}                       # d64 / dp32f4
+      run q_${S}_b8        --init $INIT $Q --quant-bits 8
+      run q_${S}_b6        --init $INIT $Q --quant-bits 6
+      run q_${S}_b6_f8     --init $INIT $Q --quant-bits 6 --attn-floor 8
+      run q_${S}_b4        --init $INIT $Q --quant-bits 4
+      run q_${S}_b4_f8     --init $INIT $Q --quant-bits 4 --attn-floor 8
+    done
     ;;
   *) echo "unknown stage $1" >&2; exit 2 ;;
 esac

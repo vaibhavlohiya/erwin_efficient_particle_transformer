@@ -11,6 +11,13 @@ ErwinParTv2 checkpoint (trained on the SAME seed's split) as the teacher; its
 logits on the training jets are computed once and cached, and the loss is
     alpha * CE(student, y) + (1 - alpha) * T^2 * KL(softmax(t/T) || softmax(s/T)).
 
+Quantization-aware training (step 5): --init <lite tag> starts from that run's
+checkpoint AND config (model flags are then ignored); --quant-bits W installs
+ap_fixed<W, .> emulation (networks/erwin_part/fpga/quant.py), with the attention
+path at max(W, --attn-floor) bits. Integer bits are calibrated on training jets,
+the calibrated-but-untrained model is scored first (post-training quantization,
+"ptq" in the result), then trained (--epochs, usually fewer, lower --lr).
+
 Writes tests/s10_results/lite_<tag>_{result.json,log.txt} and lite_<tag>_best.pt.
 
     python tests/s16_lite_train.py --tag d64 --D 64 --ffn-ratio 2 --pair-hidden 16,16
@@ -34,8 +41,9 @@ HERE = os.path.dirname(__file__)
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "networks"))
 from erwin_part.fpga import ErwinParTLite, LiteConfig  # noqa: E402
+from erwin_part.fpga.quant import calibrate, count_bops, quantize_model, weight_bits  # noqa: E402
 from jetclass_data import NUM_FEATURES, find_root, load_all  # noqa: E402
-from lite_metrics import deployed_cost, local_metrics  # noqa: E402
+from lite_metrics import _synthetic_jet, deployed_cost, local_metrics  # noqa: E402
 from s10_compare import OUTDIR, WORKSPACE, build, log  # noqa: E402
 
 
@@ -101,6 +109,12 @@ def main():
     ap.add_argument("--teacher-ball", type=int, default=8)
     ap.add_argument("--alpha", type=float, default=0.5)
     ap.add_argument("--temp", type=float, default=4.0)
+    # quantization-aware training
+    ap.add_argument("--init", default="", help="lite run tag to start from (its config is used)")
+    ap.add_argument("--quant-bits", type=int, default=0)
+    ap.add_argument("--attn-floor", type=int, default=0)
+    ap.add_argument("--calib-batches", type=int, default=8)
+    ap.add_argument("--dist-cap", type=float, default=0.0, help="saturate the tile-normalised distance")
     args = ap.parse_args()
 
     dev = (torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")) \
@@ -122,10 +136,29 @@ def main():
                strides=() if args.flat else ints(args.strides), hierarchy=not args.flat,
                cls_layers=args.cls_layers, partition=args.partition, shift=not args.no_shift,
                ball_summary=args.ball_summary, pair_features=args.pair_features,
-               pair_hidden=ints(args.pair_hidden), norm=args.norm)
-    model = ErwinParTLite(LiteConfig(**cfg)).to(dev)
+               pair_hidden=ints(args.pair_hidden), norm=args.norm, dist_cap=args.dist_cap)
+    if args.init:
+        init = json.load(open(os.path.join(OUTDIR, f"lite_{args.init}_result.json")))
+        cfg = {k: tuple(v) if isinstance(v, list) else v for k, v in init["config"].items()}
+    cfg["dist_cap"] = args.dist_cap
+    model = ErwinParTLite(LiteConfig(**cfg))
+    if args.init:
+        model.load_state_dict(torch.load(os.path.join(OUTDIR, f"lite_{args.init}_best.pt")))
+    qc, ptq = None, None
+    if args.quant_bits:
+        qc = quantize_model(model, args.quant_bits, args.attn_floor)
+        cal = [lambda b=tr[i * args.batch:(i + 1) * args.batch]: lite_call(model, pts[b], fts[b], vec[b], msk[b])
+               for i in range(args.calib_batches)]
+        hist = calibrate(model, qc, cal)                       # on CPU, before moving to the device
+        probs, yy = predict(model, lite_call, data, te, torch.device("cpu"))
+        ptq = local_metrics(probs.numpy(), yy.numpy())
+    model = model.to(dev)
     nparam = sum(p.numel() for p in model.parameters())
     log(logp, f"=== {name} | {nparam:,} params | {cfg} | device {dev} | seed {args.seed} ===")
+    if qc is not None:
+        log(logp, f"quantized from {args.init or 'scratch'}: {qc}; integer bits {hist}")
+        log(logp, f"post-training quantization (no training): test acc {ptq['accuracy']:.4f}  "
+                  f"AUC {ptq['auc_macro']:.4f}")
 
     t_logits = None
     if args.teacher:
@@ -178,7 +211,14 @@ def main():
               train_minutes=(time.perf_counter() - t_start) / 60,
               distill={"teacher": args.teacher, "teacher_ball": args.teacher_ball, "alpha": args.alpha,
                        "temp": args.temp} if args.teacher else None,
-              cost=deployed_cost(model, lite_call, NUM_FEATURES))
+              cost=deployed_cost(model, lite_call, NUM_FEATURES), init=args.init or None)
+    if qc is not None:
+        one = [torch.cat(x) for x in zip(*[_synthetic_jet(64, NUM_FEATURES, 128)])]
+        tm["quant"] = {"bits": qc.bits, "attn_bits": qc.attn_bits, "ptq": ptq,
+                       "bops": count_bops(model, qc, lambda: lite_call(model, *one)),
+                       **weight_bits(model, qc)}
+        log(logp, f"QAT {qc.bits}-bit (attention {qc.attn_bits}): {tm['quant']['bops'] / 1e9:.2f}G BOPs, "
+                  f"{tm['quant']['kbit_total']:.0f} kbit of parameters; PTQ was {ptq['accuracy']:.4f}")
     log(logp, f"TEST acc {tm['accuracy']:.4f}  AUC {tm['auc_macro']:.4f}  | {tm['cost']['params']:,} params, "
               f"{tm['cost']['macs'] / 1e6:.1f}M MACs, {tm['cost']['peak_act_mb_fp32']:.3f} MB  "
               f"({tm['train_minutes']:.1f} min)")

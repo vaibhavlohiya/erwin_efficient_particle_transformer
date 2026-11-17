@@ -36,6 +36,7 @@ from erwin_part.fpga.norms import MaskedBatchNorm  # noqa: E402
 from erwin_part.fpga.partition import gather_slots, morton_order  # noqa: E402
 from erwin_part.model import ErwinParticleTransformerV2  # noqa: E402
 from jetclass_data import NUM_FEATURES, find_root, load_all  # noqa: E402
+from lite_metrics import _synthetic_jet  # noqa: E402
 
 torch.manual_seed(0)
 fails = []
@@ -214,6 +215,58 @@ check("pair-norm statistics exclude a particle paired with itself",
       not bool((st & diag).any()) and bool(st.any()),
       f"ln dR of self-pairs {float(f0[..., 2][diag & (msk[:B, 0, :1] > 0).view(-1, 1, 1, 1)].max()):.1f}, "
       f"of real pairs median {float(f0[..., 2][st].median()):.1f}")
+
+# ------------------------------------------------------------------ quant --
+print("\n9. fixed-point emulation")
+from erwin_part.fpga.quant import AttnQ, QConfig, calibrate, count_bops, fake_fixed, quantize_model  # noqa: E402
+xg = torch.linspace(-5, 5, 1001, requires_grad=True)
+yq = fake_fixed(xg, 6, 2)                                   # ap_fixed<6,2>: step 1/16, range [-2, 2 - 1/16]
+yq.sum().backward()
+on_grid = bool(torch.allclose(yq * 16, (yq * 16).round()))
+check("ap_fixed<6,2>: on the 1/16 grid, saturates at [-2, 1.9375], gradient 1 inside and 0 outside",
+      on_grid and float(yq.min()) == -2.0 and float(yq.max()) == 1.9375
+      and bool((xg.grad[(xg > -2) & (xg < 1.9)] == 1).all()) and bool((xg.grad[xg.abs() > 2.5] == 0).all()))
+small = tuple(t[:8] for t in batch)
+cal = [lambda: run(mq, small)]
+for kw in [dict(ball_summary="physics", pair_features="lut", norm="batchnorm"), FPGA]:
+    torch.manual_seed(0)
+    fp = ErwinParTLite(LiteConfig(input_dim=C, **kw)).eval()
+    mq = ErwinParTLite(LiteConfig(input_dim=C, **kw)).eval()
+    mq.load_state_dict(fp.state_dict())
+    mq.cfg.dist_cap = fp.cfg.dist_cap = 16.0                 # bounded bias, as in the quantized runs
+    qc = quantize_model(mq, 24, percentile=1.0)               # calibrate to the max: nothing saturates
+    calibrate(mq, qc, cal)
+    with torch.no_grad():
+        d24 = float((run(mq, small) - run(fp, small)).abs().max())
+    tag = "physics/lut/bn" if kw.get("D") is None else "FPGA candidate"
+    nan_bits = [q for q in mq.modules() if hasattr(q, "int_bits") and torch.isnan(q.int_bits)]
+    check(f"{tag}: 24-bit emulation reproduces the float model", d24 < 1e-3 and not nan_bits,
+          f"max |logit diff| {d24:.1e}; uncalibrated quantizers {len(nan_bits)}")
+    # 8 bits: at 4, a freshly initialised class token (std 0.02) is below one step and
+    # its attention output rounds to 0, which zeroes that layer's weight gradient - a
+    # property of the random init, not of the gradient path being checked here.
+    qc.bits = qc.attn_bits = 8
+    mq.train()
+    out = run(mq, small)
+    out.sum().backward()
+    dead = [k for k, p_ in mq.named_parameters() if p_.grad is None or not p_.grad.abs().sum()]
+    check(f"{tag}: 8-bit forward finite, every parameter gets gradient (trainable)",
+          bool(torch.isfinite(out).all()) and not dead, f"no gradient: {dead[:4]}" if dead else "")
+    one = list(_synthetic_jet(64, C, 128))
+    b8 = count_bops(mq, qc, lambda: run(mq, one))
+    qc.bits = qc.attn_bits = 4
+    b4 = count_bops(mq, qc, lambda: run(mq, one))
+    check(f"{tag}: BOPs scale as bits^2 (8-bit / 4-bit = 4)", abs(b8 / b4 - 4) < 1e-6, f"{b8 / 1e9:.3f}G vs {b4 / 1e9:.3f}G")
+aq = AttnQ(QConfig(4))
+for f_ in aq.modules():
+    if hasattr(f_, "int_bits") and f_.group != "prob":
+        f_.int_bits.fill_(4)
+qq, kk, vv = torch.randn(2, 1, 3, 4), torch.randn(2, 1, 5, 4), torch.randn(2, 1, 5, 4)
+kvm = torch.tensor([True, True, False, True, False]).view(1, 1, 1, 5)
+o1 = aq.attend(qq, kk, vv, None, kvm, 0.0, False)
+vv2 = vv.clone(); vv2[..., [2, 4], :] += 100.0
+o2 = aq.attend(qq, kk, vv2, None, kvm, 0.0, False)
+check("quantized attention: masked keys get exactly zero weight", torch.equal(o1, o2))
 
 # ------------------------------------------------------------------- size --
 print("\n8. size")

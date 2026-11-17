@@ -68,6 +68,7 @@ class LiteConfig:
     pair_hidden: tuple = (64, 64)
     lut_bits: int = 6
     use_dist_bias: bool = True
+    dist_cap: float = 0.0                # >0: saturate the tile-normalised distance (see _dist)
     norm: str = "layernorm"              # layernorm | batchnorm | affine | none
     dropout: float = 0.1
     attn_dropout: float = 0.1
@@ -159,16 +160,25 @@ class LiteMSA(nn.Module):
         x = x + self.pe_proj(ctx["rel"])
         q, k, v = self.qkv(x).view(-1, nb, m, 3, H, hd).permute(3, 0, 1, 4, 2, 5)   # (N, nb, H, m, hd)
         K = m
+        aq = getattr(self, "aq", None)              # fixed-point emulation, set by quant.quantize_model
         if self.summary:
             w = ctx["valid"].unsqueeze(-1).to(x.dtype)
             s = (x * w).sum(2) / w.sum(2).clamp(min=1.0)                            # (N, nb, D)
-            kv = F.linear(s, self.qkv.weight[D:], self.qkv.bias[D:]).view(-1, nb, 2, H, hd)
+            if aq is not None:                      # through the quantized layer (its Q part unused)
+                kv = self.qkv(s)[..., D:].reshape(-1, nb, 2, H, hd)
+            else:
+                kv = F.linear(s, self.qkv.weight[D:], self.qkv.bias[D:]).view(-1, nb, 2, H, hd)
             ks = kv[:, :, 0].permute(0, 2, 1, 3).unsqueeze(1).expand(-1, nb, H, nb, hd)
             vs = kv[:, :, 1].permute(0, 2, 1, 3).unsqueeze(1).expand(-1, nb, H, nb, hd)
             k = torch.cat([k, ks], dim=3)
             v = torch.cat([v, vs], dim=3)
             K = m + nb
         bias = ctx["u"] - F.softplus(self.sigma) * ctx["dist"]                        # (N, nb, H, m, K)
+        if aq is not None:
+            out = aq.attend(q.reshape(-1, H, m, hd), k.reshape(-1, H, K, hd), v.reshape(-1, H, K, hd),
+                            bias.reshape(-1, H, m, K), ctx["key_valid"].reshape(-1, 1, 1, K),
+                            self.attn_dropout, self.training)
+            return self.proj(out.view(-1, nb, H, m, hd).permute(0, 1, 3, 2, 4).reshape(-1, nb, m, D))
         bias = bias.masked_fill(~ctx["key_valid"].unsqueeze(2).unsqueeze(3), NEG)
         out = F.scaled_dot_product_attention(
             q.reshape(-1, H, m, hd), k.reshape(-1, H, K, hd), v.reshape(-1, H, K, hd),
@@ -200,6 +210,9 @@ class LiteBlock(nn.Module):
         x = x + self.dropout(self.post_attn_norm(h, valid))
         h = self.dropout(self.act_dropout(self.ffn(self.pre_ffn_norm(x, valid))))
         x = x * self.w_resid + h
+        out_q = getattr(self, "out_q", None)        # residual stream at fixed point (quant.py)
+        if out_q is not None:
+            x = out_q(x)
         return x * valid.unsqueeze(-1).to(x.dtype)
 
 
@@ -248,8 +261,12 @@ class ClsBlock(nn.Module):
         un = self.norm1(u, uv)
         q = self.q(un[:, :1]).view(-1, 1, H, hd).transpose(1, 2)
         k, v = self.kv(un).view(-1, un.shape[1], 2, H, hd).permute(2, 0, 3, 1, 4)
-        mask = torch.zeros_like(uv, dtype=u.dtype).masked_fill(~uv, NEG)[:, None, None, :]
-        a = F.scaled_dot_product_attention(q, k, v, attn_mask=mask)
+        aq = getattr(self, "aq", None)
+        if aq is not None:
+            a = aq.attend(q, k, v, None, uv[:, None, None, :], 0.0, self.training)
+        else:
+            mask = torch.zeros_like(uv, dtype=u.dtype).masked_fill(~uv, NEG)[:, None, None, :]
+            a = F.scaled_dot_product_attention(q, k, v, attn_mask=mask)
         cls = cls + self.dropout(self.proj(a.transpose(1, 2).reshape(-1, 1, H * hd)))
         return cls + self.dropout(self.ffn(self.norm2(cls, torch.ones_like(tok_valid[:, :1]))))
 
@@ -297,8 +314,16 @@ class ErwinParTLite(nn.Module):
         d = pos_i - pos_j
         dr2 = (d * d).sum(-1)
         if self.cfg.pair_features == "lut":
-            return dr2 / radius2.clamp(min=1e-6)
-        return dr2.clamp(min=1e-12).sqrt() / radius2.clamp(min=1e-6).sqrt()
+            out = dr2 / radius2.clamp(min=1e-6)
+        else:
+            out = dr2.clamp(min=1e-12).sqrt() / radius2.clamp(min=1e-6).sqrt()
+        # A one-particle tile has radius 0, so its distances to other tiles' summaries
+        # come out ~1e6. In float that only switches those keys off; in fixed point it
+        # stretches the bias's range and costs every other value its resolution. A cap
+        # (in the same units: dR^2/r^2 for lut, dR/r otherwise) saturates it, as hardware would.
+        if self.cfg.dist_cap > 0:
+            out = out.clamp(max=self.cfg.dist_cap)
+        return out
 
     def _context(self, li, pos, p4, valid):
         """Tile-shaped geometry and the bias shared by every block at one level/ordering."""
