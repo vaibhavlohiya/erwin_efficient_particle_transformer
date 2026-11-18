@@ -8,6 +8,7 @@
 #   bash tests/s16_sweep.sh depth           # stage 2: depth cuts
 #   bash tests/s16_sweep.sh kd              # step 4: distillation from ErwinParTv2
 #   bash tests/s16_sweep.sh qat             # step 5: 8 / 6 / 4 bits, attention floor off or 8
+#   bash tests/s16_sweep.sh particles       # 32 / 16 particles per jet
 #
 # variants/repeat (v64_*) predate the self-pair fix in PairNet; decide (d64_*) is after it.
 #
@@ -83,6 +84,13 @@ case "${1:?usage: s16_sweep.sh variants}" in
       run q_${S}_b6_f8     --init $INIT $Q --quant-bits 6 --attn-floor 8
       run q_${S}_b4        --init $INIT $Q --quant-bits 4
       run q_${S}_b4_f8     --init $INIT $Q --quant-bits 4 --attn-floor 8
+    done
+    ;;
+  particles) # trigger realism: only the hardest 32 / 16 particles per jet (64 = the decide/depth runs)
+    V="--ball-summary physics --pair-features lut --norm batchnorm --dist-cap 16"
+    for L in 32 16; do
+      run n${L}_d64    $D64 --seq-len $L $V
+      run n${L}_d32    --D 32 --ffn-ratio 4 --pair-hidden 16,16 --depths 1,1,1 --seq-len $L $V
     done
     ;;
   *) echo "unknown stage $1" >&2; exit 2 ;;

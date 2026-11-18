@@ -1,0 +1,12 @@
+[14:45:04] === lite_q_d64_b8 | 375,724 params | {'input_dim': 17, 'D': 64, 'num_heads': 0, 'ffn_ratio': 2, 'embed_ratio': 4, 'depths': (2, 2, 2), 'strides': (2, 2), 'hierarchy': True, 'cls_layers': 2, 'partition': 'morton', 'shift': True, 'ball_summary': 'physics', 'pair_features': 'lut', 'pair_hidden': (16, 16), 'norm': 'batchnorm', 'dist_cap': 16.0} | device mps | seed 0 ===
+[14:45:04] quantized from d64_phys_lut_bn_s0: QConfig(bits=8, attn_bits=8); integer bits {'attn:1': 3, 'attn:3': 4, 'attn:4': 19, 'attn:5': 6, 'default:0': 1, 'default:2': 5, 'default:3': 2, 'default:4': 48, 'default:5': 14, 'default:6': 3, 'prob:0': 8, 'score:5': 8}
+[14:45:04] post-training quantization (no training): test acc 0.7733  AUC 0.9723
+[14:50:48] epoch   1/6  loss 0.6123  val loss 0.6585  val acc 0.7708  val AUC 0.9706  343.1s  *
+[14:56:41] epoch   2/6  loss 0.6140  val loss 0.6577  val acc 0.7689  val AUC 0.9706  353.5s
+[15:03:01] epoch   3/6  loss 0.6023  val loss 0.6572  val acc 0.7700  val AUC 0.9707  379.8s
+[15:08:53] epoch   4/6  loss 0.5901  val loss 0.6487  val acc 0.7752  val AUC 0.9713  351.7s  *
+[15:14:27] epoch   5/6  loss 0.5800  val loss 0.6489  val acc 0.7732  val AUC 0.9712  334.1s
+[15:20:08] epoch   6/6  loss 0.5724  val loss 0.6504  val acc 0.7745  val AUC 0.9711  340.7s
+[15:20:27] QAT 8-bit (attention 8): 1.00G BOPs, 3251 kbit of parameters; PTQ was 0.7733
+[15:20:27] TEST acc 0.7730  AUC 0.9725  | 375,724 params, 15.6M MACs, 0.422 MB  (35.4 min)
+[15:20:27]   rej90: Hbb 254  Hcc 29  Hgg 7  H4q 25  Hqql 1017+  Zqq 10  Wqq 11  Tbqq 51  Tbl 1017+

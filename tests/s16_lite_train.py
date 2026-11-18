@@ -91,6 +91,7 @@ def main():
     ap.add_argument("--device", default="auto")
     # model (LiteConfig)
     ap.add_argument("--D", type=int, default=128)
+    ap.add_argument("--seq-len", type=int, default=64, help="particles kept per jet, hardest pT first")
     ap.add_argument("--heads", type=int, default=0)
     ap.add_argument("--ffn-ratio", type=int, default=4)
     ap.add_argument("--embed-ratio", type=int, default=4)
@@ -131,7 +132,7 @@ def main():
     pts, fts, vec, msk, y = data
 
     torch.manual_seed(args.seed); np.random.seed(args.seed); random.seed(args.seed)
-    cfg = dict(input_dim=NUM_FEATURES, D=args.D, num_heads=args.heads, ffn_ratio=args.ffn_ratio,
+    cfg = dict(input_dim=NUM_FEATURES, seq_len=args.seq_len, D=args.D, num_heads=args.heads, ffn_ratio=args.ffn_ratio,
                embed_ratio=args.embed_ratio, depths=ints(args.depths),
                strides=() if args.flat else ints(args.strides), hierarchy=not args.flat,
                cls_layers=args.cls_layers, partition=args.partition, shift=not args.no_shift,
