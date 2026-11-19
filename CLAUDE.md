@@ -143,6 +143,10 @@ Geometry for v2 comes from `pf_points` = `(part_deta, part_dphi)` as JetClass sh
 
 **Pre-trained models** (`models/*.pt`): JetClass-trained checkpoints for the `-FineTune` modes and as evaluation baselines.
 
+## FPGA compression study
+
+Ongoing work on branch `feat/fpga-compression-workflow`: **read `docs/fpga_study.md` first** before resuming it. It holds the ground rules (local data only until the user reviews; no cluster runs yet), the results so far, how to rerun each stage, and the open to-do list.
+
 ## Workspace context
 
 This repo sits in the `HEP-NN` workspace (not itself a repo) alongside `../erwin/` (upstream reference implementation and ball-tree source of truth), `../weaver/` (an unrelated older fork of the training framework — *not* the pip `weaver-core` this repo trains against), and `../hww-tagger/`. `../CLAUDE.md` covers what spans them; `../erwin/CLAUDE.md` covers ball-tree internals upstream.
